@@ -84,7 +84,7 @@ func (l *Limiter) Finish() {
 	close(w.done)
 }
 
-func max(a, b int) {
+func max(a, b int) int {
 	if a >= b {
 		return a
 	}

@@ -74,6 +74,7 @@ func (l *Limiter) Finish() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.count -= 1
+	l.count = max(0, l.count)
 	first := l.waitList.Front()
 	if first == nil {
 		return
@@ -81,4 +82,11 @@ func (l *Limiter) Finish() {
 	w := l.waitList.Remove(first).(waiter)
 	w.done <- struct{}{}
 	close(w.done)
+}
+
+func max(a, b int) {
+	if a >= b {
+		return a
+	}
+	return b
 }

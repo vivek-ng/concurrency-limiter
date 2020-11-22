@@ -39,9 +39,9 @@ func TestConcurrentRateLimiterBlocking(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 3, l.waitList.Len())
-	l.Finish()
-	l.Finish()
-	l.Finish()
+	for i := 0; i < 3; i++ {
+		l.Finish()
+	}
 	wg.Wait()
 	assert.Equal(t, 0, l.waitList.Len())
 }

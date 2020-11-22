@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// waiter is the individual goroutine waiting for accessing the request.
+// waiter waits for the signal through the done channel.
 type waiter struct {
 	done chan struct{}
 }
@@ -29,6 +31,9 @@ func (l *Limiter) WithTimeout(timeout int) *Limiter {
 	return l
 }
 
+// Wait waits if the number of concurrent requests is more than the limit specified.
+// If a timeout is configured , then the goroutine will wait until the timeout occurs and then proceeds to
+// access the resource irrespective of whether it has received a signal in the done channel.
 func (l *Limiter) Wait() {
 	ok, ch := l.proceed()
 	if ok {

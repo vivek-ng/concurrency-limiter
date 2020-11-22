@@ -12,16 +12,17 @@ func TestPriorityQueue(t *testing.T) {
 	heap.Init(&pq)
 	for i := 0; i < 3; i++ {
 		item := &Item{
-			priority: i * 2,
-			done:     make(chan struct{}),
+			Priority: i * 2,
+			Done:     make(chan struct{}),
 		}
 		heap.Push(&pq, item)
 	}
 	expectedVals := []int{4, 2, 0}
 	actualVals := make([]int, 0)
 	for pq.Len() > 0 {
-		item := heap.Pop(&pq).(*Item)
-		actualVals = append(actualVals, item.priority)
+		topEle := pq.Top().(Item)
+		_ = heap.Pop(&pq).(*Item)
+		actualVals = append(actualVals, topEle.Priority)
 	}
 	assert.Equal(t, expectedVals, actualVals)
 }
@@ -31,7 +32,7 @@ func TestPriorityQueue_SamePriority(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		pq[i] = &Item{
-			priority:  1,
+			Priority:  1,
 			timeStamp: int64(i),
 		}
 	}

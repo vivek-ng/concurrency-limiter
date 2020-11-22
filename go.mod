@@ -1,4 +1,4 @@
-module github.com/vivek-ng/rate-limiter
+module github.com/vivek-ng/concurrency-limiter
 
 go 1.14
 

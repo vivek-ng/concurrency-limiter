@@ -3,6 +3,7 @@ package limiter
 import (
 	"container/list"
 	"sync"
+	"time"
 )
 
 type waiter struct {
@@ -14,7 +15,7 @@ type Limiter struct {
 	limit    int
 	mu       sync.Mutex
 	waitList list.List
-	//notify []chan struct{}
+	timeout  *int
 }
 
 func NewLimiter(limit int) *Limiter {
@@ -23,11 +24,34 @@ func NewLimiter(limit int) *Limiter {
 	}
 }
 
+func (l *Limiter) WithTimeout(timeout int) *Limiter {
+	l.timeout = &timeout
+	return l
+}
+
 func (l *Limiter) Wait() {
 	ok, ch := l.proceed()
-	if !ok {
-		<-ch
+	if ok {
+		return
 	}
+	if l.timeout != nil {
+		select {
+		case <-ch:
+		case <-time.After((time.Duration(*l.timeout) * time.Second)):
+			l.mu.Lock()
+			for w := l.waitList.Front(); w != nil; w = w.Next() {
+				ele := w.Value.(waiter)
+				if ele.done == ch {
+					close(ch)
+					l.waitList.Remove(w)
+					break
+				}
+			}
+			l.mu.Unlock()
+		}
+		return
+	}
+	<-ch
 }
 
 func (l *Limiter) proceed() (bool, chan struct{}) {
@@ -51,6 +75,9 @@ func (l *Limiter) Finish() {
 	defer l.mu.Unlock()
 	l.count -= 1
 	first := l.waitList.Front()
+	if first == nil {
+		return
+	}
 	w := l.waitList.Remove(first).(waiter)
 	w.done <- struct{}{}
 	close(w.done)

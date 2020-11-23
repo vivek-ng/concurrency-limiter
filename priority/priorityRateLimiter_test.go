@@ -36,7 +36,8 @@ func TestPriorityLimiter(t *testing.T) {
 }
 
 func TestDynamicPriority(t *testing.T) {
-	nl := NewLimiter(3).WithDynamicPriority(10)
+	nl := NewLimiter(3,
+		WithDynamicPriority(10))
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for i := 0; i < 5; i++ {
@@ -59,7 +60,8 @@ func TestDynamicPriority(t *testing.T) {
 }
 
 func TestPriorityLimiter_Timeout(t *testing.T) {
-	nl := NewLimiter(3).WithTimeout(100)
+	nl := NewLimiter(3,
+		WithTimeout(100))
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for i := 0; i < 5; i++ {

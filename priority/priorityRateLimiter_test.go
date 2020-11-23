@@ -32,7 +32,7 @@ func TestPriorityLimiter(t *testing.T) {
 	assert.Greater(t, expectedVal1, expectedVal2)
 	nl.Finish()
 	wg.Wait()
-	assert.Equal(t, 0, nl.waitList.Len())
+	assert.Zero(t, nl.waitList.Len())
 }
 
 func TestDynamicPriority(t *testing.T) {
@@ -56,4 +56,24 @@ func TestDynamicPriority(t *testing.T) {
 	expectedVal2 := pValItem.Priority
 	assert.GreaterOrEqual(t, expectedVal1, 10)
 	assert.GreaterOrEqual(t, expectedVal2, 10)
+}
+
+func TestPriorityLimiter_Timeout(t *testing.T) {
+	nl := NewLimiter(3).WithTimeout(100)
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func(pr int) {
+			defer wg.Done()
+			nl.Wait(1)
+		}(i)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	wg.Wait()
+	for i := 0; i < 5; i++ {
+		nl.Finish()
+	}
+	assert.Zero(t, nl.count)
+	assert.Zero(t, nl.waitList.Len())
 }

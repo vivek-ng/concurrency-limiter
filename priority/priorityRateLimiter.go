@@ -14,6 +14,7 @@ type PriorityLimiter struct {
 	mu            sync.Mutex
 	waitList      queue.PriorityQueue
 	dynamicPeriod *int
+	timeout       *int
 }
 
 func NewLimiter(limit int) *PriorityLimiter {
@@ -32,12 +33,22 @@ func (p *PriorityLimiter) WithDynamicPriority(dynamicPeriod int) *PriorityLimite
 	return p
 }
 
+func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
+	p.timeout = &timeout
+	return p
+}
+
 // Wait method waits if the number of concurrent requests is more than the limit specified.
 // If the priority of two goroutines are same , the FIFO order is followed.
 // Greater priority value means higher priority.
 func (p *PriorityLimiter) Wait(priority int) {
 	ok, w := p.proceed(priority)
 	if ok {
+		return
+	}
+
+	if p.dynamicPeriod == nil && p.timeout == nil {
+		<-w.Done
 		return
 	}
 	if p.dynamicPeriod != nil {
@@ -54,7 +65,15 @@ func (p *PriorityLimiter) Wait(priority int) {
 			}
 		}
 	}
-	<-w.Done
+
+	select {
+	case <-w.Done:
+	case <-time.After(time.Duration(*p.timeout) * time.Millisecond):
+		p.mu.Lock()
+		heap.Remove(&p.waitList, p.waitList.GetIndex(w))
+		p.count += 1
+		p.mu.Unlock()
+	}
 }
 
 // proceed will return true if the number of concurrent requests is less than the limit else it
@@ -83,10 +102,10 @@ func (p *PriorityLimiter) Finish() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.count -= 1
-	ele := heap.Pop(&p.waitList)
-	if ele == nil {
+	if p.waitList.Len() == 0 {
 		return
 	}
+	ele := heap.Pop(&p.waitList)
 	it := ele.(*queue.Item)
 	it.Done <- struct{}{}
 	close(it.Done)

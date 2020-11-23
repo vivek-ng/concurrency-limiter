@@ -56,6 +56,11 @@ func (pq *PriorityQueue) Top() interface{} {
 	return *ol[0]
 }
 
+func (pq *PriorityQueue) GetIndex(x interface{}) int {
+	item := x.(*Item)
+	return item.index
+}
+
 func makeTimestamp() int64 {
 	return time.Now().UnixNano() / int64(time.Millisecond)
 }

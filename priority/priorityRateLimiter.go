@@ -147,6 +147,7 @@ func (p *PriorityLimiter) Finish() {
 	close(it.Done)
 }
 
+// only used in tests
 func (p *PriorityLimiter) waitListSize() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()

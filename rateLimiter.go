@@ -105,6 +105,7 @@ func (l *Limiter) Finish() {
 	close(w.done)
 }
 
+// only used in tests
 func (l *Limiter) waitListSize() int {
 	l.mu.Lock()
 	defer l.mu.Unlock()

@@ -25,7 +25,9 @@ chance to access the resource in the FIFO order.
 ### Limiter with Timeout
 
 ```go
-    nl := limiter.New(3).WithTimeout(10)
+    nl := limiter.New(3,
+    WithTimeout(10),
+    )
     nl.Wait()
     Execute......
     nl.Finish()
@@ -48,7 +50,9 @@ given the maximum preference because it is of high priority. In the case of tie 
 ### Priority Limiter with Dynamic priority
 
 ```go
-    nl := priority.NewLimiter(3).WithDynamicPriority(5)
+    nl := priority.NewLimiter(3,
+    WithDynamicPriority(5),
+    )
     nl.Wait(priority.Low)
     Execute......
     nl.Finish()
@@ -58,7 +62,9 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
 ### Priority Limiter with Timeout
 
 ```go
-    nl := priority.NewLimiter(3).WithTimeout(30)
+    nl := priority.NewLimiter(3,
+    WithTimeout(30),
+    )
     nl.Wait(constants.High)
     Execute......
     nl.Finish()

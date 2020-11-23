@@ -1,6 +1,7 @@
 package limiter
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -13,11 +14,11 @@ func TestConcurrentRateLimiterNonBlocking(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(5)
-
+	ctx := context.Background()
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait()
+			l.Wait(ctx)
 		}()
 	}
 
@@ -30,11 +31,12 @@ func TestConcurrentRateLimiterBlocking(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(5)
+	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait()
+			l.Wait(ctx)
 		}()
 	}
 	time.Sleep(100 * time.Millisecond)
@@ -53,11 +55,12 @@ func TestConcurrentRateLimiterTimeout(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(5)
+	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait()
+			l.Wait(ctx)
 		}()
 	}
 	time.Sleep(500 * time.Millisecond)
@@ -66,4 +69,26 @@ func TestConcurrentRateLimiterTimeout(t *testing.T) {
 	l.Finish()
 	assert.Equal(t, 3, l.count)
 	assert.Equal(t, 0, l.waitList.Len())
+}
+
+func TestConcurrentRateLimiter_ContextDone(t *testing.T) {
+	l := New(2)
+
+	var wg sync.WaitGroup
+	wg.Add(5)
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+
+	for i := 0; i < 5; i++ {
+		go func() {
+			defer wg.Done()
+			l.Wait(ctx)
+		}()
+	}
+	time.Sleep(200 * time.Millisecond)
+	assert.Equal(t, 3, l.waitListSize())
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+	assert.Zero(t, l.waitListSize())
+	assert.Equal(t, 5, l.count)
 }

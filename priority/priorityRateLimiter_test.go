@@ -1,6 +1,7 @@
 package priority
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -13,11 +14,12 @@ func TestPriorityLimiter(t *testing.T) {
 	nl := NewLimiter(3)
 	var wg sync.WaitGroup
 	wg.Add(5)
+	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
 		go func(pr int) {
 			defer wg.Done()
-			nl.Wait(PriorityValue(pr))
+			nl.Wait(ctx, PriorityValue(pr))
 		}(i)
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -39,12 +41,13 @@ func TestDynamicPriority(t *testing.T) {
 	nl := NewLimiter(3,
 		WithDynamicPriority(10),
 	)
+	ctx := context.Background()
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for i := 0; i < 5; i++ {
 		go func(pr int) {
 			defer wg.Done()
-			nl.Wait(1)
+			nl.Wait(ctx, 1)
 		}(i)
 	}
 	time.Sleep(100 * time.Millisecond)
@@ -64,12 +67,13 @@ func TestPriorityLimiter_Timeout(t *testing.T) {
 	nl := NewLimiter(3,
 		WithTimeout(100),
 	)
+	ctx := context.Background()
 	var wg sync.WaitGroup
 	wg.Add(5)
 	for i := 0; i < 5; i++ {
 		go func(pr int) {
 			defer wg.Done()
-			nl.Wait(1)
+			nl.Wait(ctx, 1)
 		}(i)
 	}
 
@@ -79,5 +83,44 @@ func TestPriorityLimiter_Timeout(t *testing.T) {
 		nl.Finish()
 	}
 	assert.Zero(t, nl.count)
+	assert.Zero(t, nl.waitListSize())
+}
+
+func TestPriorityLimiter_ContextDone(t *testing.T) {
+	nl := NewLimiter(3)
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func(pr int) {
+			defer wg.Done()
+			nl.Wait(ctx, 1)
+		}(i)
+	}
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, 2, nl.waitListSize())
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+	assert.Zero(t, nl.waitListSize())
+}
+
+func TestPriorityLimiter_ContextWithTimeout(t *testing.T) {
+	nl := NewLimiter(3,
+		WithTimeout(500))
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func(pr int) {
+			defer wg.Done()
+			nl.Wait(ctx, 1)
+		}(i)
+	}
+	time.Sleep(100 * time.Millisecond)
+	assert.Equal(t, 2, nl.waitListSize())
+	cancel()
+	time.Sleep(100 * time.Millisecond)
 	assert.Zero(t, nl.waitListSize())
 }

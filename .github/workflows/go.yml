@@ -33,4 +33,14 @@ jobs:
       run: go build -v .
 
     - name: Test
-      run: go test -v .
+      shell: bash
+      run: |
+        bash test.sh
+
+    
+    - name: Send to Codecov
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      run: | 
+        bash <(curl -s https://codecov.io/bash)
+      shell: bash

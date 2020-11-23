@@ -116,6 +116,7 @@ func (p *PriorityLimiter) Wait(priority PriorityValue) {
 		p.mu.Lock()
 		heap.Remove(&p.waitList, p.waitList.GetIndex(w))
 		p.count += 1
+		close(w.Done)
 		p.mu.Unlock()
 	}
 }

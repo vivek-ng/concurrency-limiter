@@ -2,6 +2,7 @@ package priority
 
 import (
 	"container/heap"
+	"context"
 	"sync"
 	"time"
 
@@ -85,14 +86,18 @@ func WithTimeout(timeout int) func(*PriorityLimiter) {
 // Medium = 2
 // MediumHigh = 3
 // High = 4
-func (p *PriorityLimiter) Wait(priority PriorityValue) {
+func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 	ok, w := p.proceed(priority)
 	if ok {
 		return
 	}
 
 	if p.dynamicPeriod == nil && p.timeout == nil {
-		<-w.Done
+		select {
+		case <-w.Done:
+		case <-ctx.Done():
+			p.removeWaiter(w)
+		}
 		return
 	}
 	if p.dynamicPeriod != nil {
@@ -108,6 +113,9 @@ func (p *PriorityLimiter) Wait(priority PriorityValue) {
 					p.waitList.Update(w, currentPriority+1)
 				}
 				p.mu.Unlock()
+			case <-ctx.Done():
+				p.removeWaiter(w)
+				return
 			}
 		}
 	}
@@ -115,12 +123,18 @@ func (p *PriorityLimiter) Wait(priority PriorityValue) {
 	select {
 	case <-w.Done:
 	case <-time.After(time.Duration(*p.timeout) * time.Millisecond):
-		p.mu.Lock()
-		heap.Remove(&p.waitList, p.waitList.GetIndex(w))
-		p.count += 1
-		close(w.Done)
-		p.mu.Unlock()
+		p.removeWaiter(w)
+	case <-ctx.Done():
+		p.removeWaiter(w)
 	}
+}
+
+func (p *PriorityLimiter) removeWaiter(w *queue.Item) {
+	p.mu.Lock()
+	heap.Remove(&p.waitList, p.waitList.GetIndex(w))
+	p.count += 1
+	close(w.Done)
+	p.mu.Unlock()
 }
 
 // proceed will return true if the number of concurrent requests is less than the limit else it

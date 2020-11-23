@@ -81,8 +81,10 @@ func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
 				return
 			case <-ticker.C:
 				p.mu.Lock()
-				currentPriority := w.Priority
-				p.waitList.Update(w, currentPriority+1)
+				if w.Priority < int(constants.High) {
+					currentPriority := w.Priority
+					p.waitList.Update(w, currentPriority+1)
+				}
 				p.mu.Unlock()
 			}
 		}

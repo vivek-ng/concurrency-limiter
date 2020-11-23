@@ -2,6 +2,7 @@ package limiter
 
 import (
 	"container/list"
+	"context"
 	"sync"
 	"time"
 )
@@ -55,7 +56,7 @@ func WithTimeout(timeout int) func(*Limiter) {
 // Wait method waits if the number of concurrent requests is more than the limit specified.
 // If a timeout is configured , then the goroutine will wait until the timeout occurs and then proceeds to
 // access the resource irrespective of whether it has received a signal in the done channel.
-func (l *Limiter) Wait() {
+func (l *Limiter) Wait(ctx context.Context) {
 	ok, ch := l.proceed()
 	if ok {
 		return
@@ -64,21 +65,30 @@ func (l *Limiter) Wait() {
 		select {
 		case <-ch:
 		case <-time.After((time.Duration(*l.timeout) * time.Millisecond)):
-			l.mu.Lock()
-			for w := l.waitList.Front(); w != nil; w = w.Next() {
-				ele := w.Value.(waiter)
-				if ele.done == ch {
-					close(ch)
-					l.waitList.Remove(w)
-					l.count += 1
-					break
-				}
-			}
-			l.mu.Unlock()
+			l.removeWaiter(ch)
+		case <-ctx.Done():
 		}
 		return
 	}
-	<-ch
+	select {
+	case <-ch:
+	case <-ctx.Done():
+		l.removeWaiter(ch)
+	}
+}
+
+func (l *Limiter) removeWaiter(ch chan struct{}) {
+	l.mu.Lock()
+	for w := l.waitList.Front(); w != nil; w = w.Next() {
+		ele := w.Value.(waiter)
+		if ele.done == ch {
+			close(ch)
+			l.waitList.Remove(w)
+			l.count += 1
+			break
+		}
+	}
+	l.mu.Unlock()
 }
 
 // proceed will return true if the number of concurrent requests is less than the limit else it

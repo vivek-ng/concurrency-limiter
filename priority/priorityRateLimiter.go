@@ -146,3 +146,10 @@ func (p *PriorityLimiter) Finish() {
 	it.Done <- struct{}{}
 	close(it.Done)
 }
+
+func (p *PriorityLimiter) waitListSize() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	len := p.waitList.Len()
+	return len
+}

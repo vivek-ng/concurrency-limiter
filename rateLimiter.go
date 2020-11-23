@@ -104,3 +104,10 @@ func (l *Limiter) Finish() {
 	w.done <- struct{}{}
 	close(w.done)
 }
+
+func (l *Limiter) waitListSize() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	len := l.waitList.Len()
+	return len
+}

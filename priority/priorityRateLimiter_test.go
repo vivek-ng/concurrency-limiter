@@ -55,8 +55,8 @@ func TestDynamicPriority(t *testing.T) {
 	pVal = nl.waitList.Top()
 	pValItem = pVal.(queue.Item)
 	expectedVal2 := pValItem.Priority
-	assert.GreaterOrEqual(t, expectedVal1, 10)
-	assert.GreaterOrEqual(t, expectedVal2, 10)
+	assert.GreaterOrEqual(t, expectedVal1, 4)
+	assert.GreaterOrEqual(t, expectedVal2, 4)
 }
 
 func TestPriorityLimiter_Timeout(t *testing.T) {

@@ -33,7 +33,10 @@ jobs:
       run: go build -v .
 
     - name: Test
-      run: ./test.sh
+      shell: bash
+      run: |
+        bash test.sh
+
     
     - name: Send to Codecov
       env:

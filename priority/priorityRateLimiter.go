@@ -116,7 +116,7 @@ func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 
 func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) {
 	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
-	timer := time.NewTimer(time.Duration(*p.dynamicPeriod) * time.Millisecond)
+	timer := time.NewTimer(time.Duration(*p.timeout) * time.Millisecond)
 	for {
 		select {
 		case <-w.Done:

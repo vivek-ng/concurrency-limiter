@@ -43,6 +43,8 @@ type PriorityLimiter struct {
 
 type Option func(*PriorityLimiter)
 
+// NewLimiter creates an instance of *PriorityLimiter. Configure the Limiter with the options specified.
+// Example: priority.NewLimiter(4, WithDynamicPriority(5))
 func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	pq := make(queue.PriorityQueue, 0)
 	nl := &PriorityLimiter{

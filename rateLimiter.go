@@ -31,6 +31,8 @@ type Limiter struct {
 
 type Option func(*Limiter)
 
+// New creates an instance of *Limiter. Configure the Limiter with the options specified.
+// Example: limiter.New(4, WithTimeout(5))
 func New(limit int, options ...Option) *Limiter {
 	l := &Limiter{
 		limit: limit,

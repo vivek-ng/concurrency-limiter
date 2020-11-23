@@ -65,7 +65,7 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
     nl := priority.NewLimiter(3,
     WithTimeout(30),
     )
-    nl.Wait(constants.High)
+    nl.Wait(priority.Low)
     Execute......
     nl.Finish()
 ```

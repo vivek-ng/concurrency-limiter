@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vivek-ng/concurrency-limiter/constants"
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
@@ -18,7 +17,7 @@ func TestPriorityLimiter(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func(pr int) {
 			defer wg.Done()
-			nl.Wait(constants.PriorityValue(pr))
+			nl.Wait(PriorityValue(pr))
 		}(i)
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -55,8 +54,8 @@ func TestDynamicPriority(t *testing.T) {
 	pVal = nl.waitList.Top()
 	pValItem = pVal.(queue.Item)
 	expectedVal2 := pValItem.Priority
-	assert.GreaterOrEqual(t, expectedVal1, int(constants.High))
-	assert.GreaterOrEqual(t, expectedVal2, int(constants.High))
+	assert.GreaterOrEqual(t, expectedVal1, int(High))
+	assert.GreaterOrEqual(t, expectedVal2, int(High))
 }
 
 func TestPriorityLimiter_Timeout(t *testing.T) {

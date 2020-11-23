@@ -36,7 +36,7 @@ number of concurrent goroutines is greater than the limit specified.
 
 ```go
     nl := priority.NewLimiter(3)
-    nl.Wait(constants.High)
+    nl.Wait(priority.High)
     Execute......
     nl.Finish()
 ```
@@ -48,7 +48,7 @@ given the maximum preference because it is of high priority. In the case of tie 
 
 ```go
     nl := priority.NewLimiter(3).WithDynamicPriority(5)
-    nl.Wait(constants.Low)
+    nl.Wait(priority.Low)
     Execute......
     nl.Finish()
 ```

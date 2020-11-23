@@ -5,8 +5,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vivek-ng/concurrency-limiter/constants"
 	"github.com/vivek-ng/concurrency-limiter/queue"
+)
+
+type PriorityValue int
+
+const (
+	Low        PriorityValue = 1
+	Medium     PriorityValue = 2
+	MediumHigh PriorityValue = 3
+	High       PriorityValue = 4
 )
 
 // limit: max number of concurrent goroutines that can access aresource
@@ -59,13 +67,13 @@ func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
 // Wait method waits if the number of concurrent requests is more than the limit specified.
 // If the priority of two goroutines are same , the FIFO order is followed.
 // Greater priority value means higher priority.
-// priority must be one fo the values specified by constants.PriorityValue
+// priority must be one fo the values specified by PriorityValue
 //
 // Low = 1
 // Medium = 2
 // MediumHigh = 3
 // High = 4
-func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
+func (p *PriorityLimiter) Wait(priority PriorityValue) {
 	ok, w := p.proceed(priority)
 	if ok {
 		return
@@ -83,7 +91,7 @@ func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
 				return
 			case <-ticker.C:
 				p.mu.Lock()
-				if w.Priority < int(constants.High) {
+				if w.Priority < int(High) {
 					currentPriority := w.Priority
 					p.waitList.Update(w, currentPriority+1)
 				}
@@ -105,7 +113,7 @@ func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
 // proceed will return true if the number of concurrent requests is less than the limit else it
 // will add the goroutine to the priority queue and will return a channel. This channel is used by goutines to
 // check for signal when they are granted access to use the resource.
-func (p *PriorityLimiter) proceed(priority constants.PriorityValue) (bool, *queue.Item) {
+func (p *PriorityLimiter) proceed(priority PriorityValue) (bool, *queue.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

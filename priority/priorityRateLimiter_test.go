@@ -124,3 +124,20 @@ func TestPriorityLimiter_ContextWithTimeout(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	assert.Zero(t, nl.waitListSize())
 }
+
+func TestDynamicPriorityAndTimeout(t *testing.T) {
+	nl := NewLimiter(3,
+		WithTimeout(100),
+		WithDynamicPriority(5))
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func(pr int) {
+			defer wg.Done()
+			nl.Wait(ctx, 1)
+		}(i)
+	}
+	time.Sleep(200 * time.Millisecond)
+	assert.Zero(t, nl.waitListSize())
+}

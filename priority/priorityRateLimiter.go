@@ -57,6 +57,12 @@ func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
 // Wait method waits if the number of concurrent requests is more than the limit specified.
 // If the priority of two goroutines are same , the FIFO order is followed.
 // Greater priority value means higher priority.
+// priority must be one fo the values specified by constants.PriorityValue
+//
+// Low = 1
+// Medium = 2
+// MediumHigh = 3
+// High = 4
 func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
 	ok, w := p.proceed(priority)
 	if ok {

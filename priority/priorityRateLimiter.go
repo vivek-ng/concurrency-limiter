@@ -41,11 +41,17 @@ type PriorityLimiter struct {
 	timeout       *int
 }
 
-func NewLimiter(limit int) *PriorityLimiter {
+type Option func(*PriorityLimiter)
+
+func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	pq := make(queue.PriorityQueue, 0)
 	nl := &PriorityLimiter{
 		limit:    limit,
 		waitList: pq,
+	}
+
+	for _, o := range options {
+		o(nl)
 	}
 
 	heap.Init(&pq)
@@ -54,16 +60,18 @@ func NewLimiter(limit int) *PriorityLimiter {
 
 // dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
 // interval specified by dynamicPeriod
-func (p *PriorityLimiter) WithDynamicPriority(dynamicPeriod int) *PriorityLimiter {
-	p.dynamicPeriod = &dynamicPeriod
-	return p
+func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
+	return func(p *PriorityLimiter) {
+		p.dynamicPeriod = &dynamicPeriod
+	}
 }
 
 // timeout: If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
-func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
-	p.timeout = &timeout
-	return p
+func WithTimeout(timeout int) func(*PriorityLimiter) {
+	return func(p *PriorityLimiter) {
+		p.timeout = &timeout
+	}
 }
 
 // Wait method waits if the number of concurrent requests is more than the limit specified.

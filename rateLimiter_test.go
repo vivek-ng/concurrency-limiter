@@ -47,7 +47,8 @@ func TestConcurrentRateLimiterBlocking(t *testing.T) {
 }
 
 func TestConcurrentRateLimiterTimeout(t *testing.T) {
-	l := New(2).WithTimeout(300)
+	l := New(2,
+		WithTimeout(300))
 
 	var wg sync.WaitGroup
 	wg.Add(5)

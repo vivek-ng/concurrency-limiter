@@ -29,17 +29,25 @@ type Limiter struct {
 	timeout  *int
 }
 
-func New(limit int) *Limiter {
-	return &Limiter{
+type Option func(*Limiter)
+
+func New(limit int, options ...Option) *Limiter {
+	l := &Limiter{
 		limit: limit,
 	}
+
+	for _, o := range options {
+		o(l)
+	}
+	return l
 }
 
 // timeout: If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
-func (l *Limiter) WithTimeout(timeout int) *Limiter {
-	l.timeout = &timeout
-	return l
+func WithTimeout(timeout int) func(*Limiter) {
+	return func(l *Limiter) {
+		l.timeout = &timeout
+	}
 }
 
 // Wait method waits if the number of concurrent requests is more than the limit specified.

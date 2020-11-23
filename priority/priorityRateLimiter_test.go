@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vivek-ng/concurrency-limiter/constants"
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
@@ -17,7 +18,7 @@ func TestPriorityLimiter(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func(pr int) {
 			defer wg.Done()
-			nl.Wait(pr)
+			nl.Wait(constants.PriorityValue(pr))
 		}(i)
 	}
 	time.Sleep(200 * time.Millisecond)

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vivek-ng/concurrency-limiter/constants"
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
@@ -56,7 +57,7 @@ func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
 // Wait method waits if the number of concurrent requests is more than the limit specified.
 // If the priority of two goroutines are same , the FIFO order is followed.
 // Greater priority value means higher priority.
-func (p *PriorityLimiter) Wait(priority int) {
+func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
 	ok, w := p.proceed(priority)
 	if ok {
 		return
@@ -94,7 +95,7 @@ func (p *PriorityLimiter) Wait(priority int) {
 // proceed will return true if the number of concurrent requests is less than the limit else it
 // will add the goroutine to the priority queue and will return a channel. This channel is used by goutines to
 // check for signal when they are granted access to use the resource.
-func (p *PriorityLimiter) proceed(priority int) (bool, *queue.Item) {
+func (p *PriorityLimiter) proceed(priority constants.PriorityValue) (bool, *queue.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -104,7 +105,7 @@ func (p *PriorityLimiter) proceed(priority int) (bool, *queue.Item) {
 	}
 	ch := make(chan struct{})
 	w := &queue.Item{
-		Priority: priority,
+		Priority: int(priority),
 		Done:     ch,
 	}
 	heap.Push(&p.waitList, w)

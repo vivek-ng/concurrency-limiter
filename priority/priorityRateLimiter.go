@@ -16,10 +16,12 @@ import (
 // waitList: Priority queue of goroutines waiting to access a resource. Goroutines will be added to
 // this list if the number of concurrent requests are greater than the limit specified. Greater value for priority means
 // higher priority for that particular goroutine.
+//
 // dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
-// interval specified by dynamicPeriod
+// interval specified by dynamicPeriod (in ms)
+//
 // timeout: If this field is specified , goroutines will be automatically removed from the waitlist
-// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit. (in ms)
 type PriorityLimiter struct {
 	count         int
 	limit         int

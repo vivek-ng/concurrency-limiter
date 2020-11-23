@@ -13,11 +13,14 @@ type waiter struct {
 }
 
 // limit: max number of concurrent goroutines that can access aresource
+//
 // count: current number of goroutines accessing a resource
+//
 // waitList: list of goroutines waiting to access a resource. Goroutines will be added to
 // this list if the number of concurrent requests are greater than the limit specified
+//
 // timeout: If this field is specified , goroutines will be automatically removed from the waitlist
-// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit. (in ms)
 type Limiter struct {
 	count    int
 	limit    int

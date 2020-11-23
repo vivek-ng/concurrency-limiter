@@ -53,3 +53,13 @@ given the maximum preference because it is of high priority. In the case of tie 
     nl.Finish()
 ```
 In Dynamic Priority Limiter , the goroutines with lower priority will get their priority increased periodically by the time period specified. For instance in the above example , the goroutine will get it's priority increased every 5 ms. This will ensure that goroutines with lower priority do not suffer from starvation. It's highly recommended to use Dynamic Priority Limiter to avoid starving low priority goroutines.
+
+### Priority Limiter with Timeout
+
+```go
+    nl := priority.NewLimiter(3).WithTimeout(30)
+    nl.Wait(constants.High)
+    Execute......
+    nl.Finish()
+```
+This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds.

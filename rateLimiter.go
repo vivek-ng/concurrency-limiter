@@ -12,6 +12,12 @@ type waiter struct {
 	done chan struct{}
 }
 
+// limit: max number of concurrent goroutines that can access aresource
+// count: current number of goroutines accessing a resource
+// waitList: list of goroutines waiting to access a resource. Goroutines will be added to
+// this list if the number of concurrent requests are greater than the limit specified
+// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 type Limiter struct {
 	count    int
 	limit    int
@@ -20,12 +26,14 @@ type Limiter struct {
 	timeout  *int
 }
 
-func NewLimiter(limit int) *Limiter {
+func New(limit int) *Limiter {
 	return &Limiter{
 		limit: limit,
 	}
 }
 
+// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func (l *Limiter) WithTimeout(timeout int) *Limiter {
 	l.timeout = &timeout
 	return l

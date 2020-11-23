@@ -8,6 +8,17 @@ import (
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
+// limit: max number of concurrent goroutines that can access aresource
+//
+// count: current number of goroutines accessing a resource
+//
+// waitList: Priority queue of goroutines waiting to access a resource. Goroutines will be added to
+// this list if the number of concurrent requests are greater than the limit specified. Greater value for priority means
+// higher priority for that particular goroutine.
+// dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
+// interval specified by dynamicPeriod
+// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 type PriorityLimiter struct {
 	count         int
 	limit         int
@@ -28,11 +39,15 @@ func NewLimiter(limit int) *PriorityLimiter {
 	return nl
 }
 
+// dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
+// interval specified by dynamicPeriod
 func (p *PriorityLimiter) WithDynamicPriority(dynamicPeriod int) *PriorityLimiter {
 	p.dynamicPeriod = &dynamicPeriod
 	return p
 }
 
+// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
 	p.timeout = &timeout
 	return p

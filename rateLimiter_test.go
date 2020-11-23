@@ -9,7 +9,7 @@ import (
 )
 
 func TestConcurrentRateLimiterNonBlocking(t *testing.T) {
-	l := NewLimiter(7)
+	l := New(7)
 
 	var wg sync.WaitGroup
 	wg.Add(5)
@@ -26,7 +26,7 @@ func TestConcurrentRateLimiterNonBlocking(t *testing.T) {
 }
 
 func TestConcurrentRateLimiterBlocking(t *testing.T) {
-	l := NewLimiter(2)
+	l := New(2)
 
 	var wg sync.WaitGroup
 	wg.Add(5)
@@ -47,7 +47,7 @@ func TestConcurrentRateLimiterBlocking(t *testing.T) {
 }
 
 func TestConcurrentRateLimiterTimeout(t *testing.T) {
-	l := NewLimiter(2).WithTimeout(300)
+	l := New(2).WithTimeout(300)
 
 	var wg sync.WaitGroup
 	wg.Add(5)

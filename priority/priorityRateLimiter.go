@@ -5,9 +5,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vivek-ng/concurrency-limiter/constants"
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
+// limit: max number of concurrent goroutines that can access aresource
+//
+// count: current number of goroutines accessing a resource
+//
+// waitList: Priority queue of goroutines waiting to access a resource. Goroutines will be added to
+// this list if the number of concurrent requests are greater than the limit specified. Greater value for priority means
+// higher priority for that particular goroutine.
+// dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
+// interval specified by dynamicPeriod
+// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 type PriorityLimiter struct {
 	count         int
 	limit         int
@@ -28,11 +40,15 @@ func NewLimiter(limit int) *PriorityLimiter {
 	return nl
 }
 
+// dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
+// interval specified by dynamicPeriod
 func (p *PriorityLimiter) WithDynamicPriority(dynamicPeriod int) *PriorityLimiter {
 	p.dynamicPeriod = &dynamicPeriod
 	return p
 }
 
+// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
 	p.timeout = &timeout
 	return p
@@ -41,7 +57,13 @@ func (p *PriorityLimiter) WithTimeout(timeout int) *PriorityLimiter {
 // Wait method waits if the number of concurrent requests is more than the limit specified.
 // If the priority of two goroutines are same , the FIFO order is followed.
 // Greater priority value means higher priority.
-func (p *PriorityLimiter) Wait(priority int) {
+// priority must be one fo the values specified by constants.PriorityValue
+//
+// Low = 1
+// Medium = 2
+// MediumHigh = 3
+// High = 4
+func (p *PriorityLimiter) Wait(priority constants.PriorityValue) {
 	ok, w := p.proceed(priority)
 	if ok {
 		return
@@ -79,7 +101,7 @@ func (p *PriorityLimiter) Wait(priority int) {
 // proceed will return true if the number of concurrent requests is less than the limit else it
 // will add the goroutine to the priority queue and will return a channel. This channel is used by goutines to
 // check for signal when they are granted access to use the resource.
-func (p *PriorityLimiter) proceed(priority int) (bool, *queue.Item) {
+func (p *PriorityLimiter) proceed(priority constants.PriorityValue) (bool, *queue.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -89,7 +111,7 @@ func (p *PriorityLimiter) proceed(priority int) (bool, *queue.Item) {
 	}
 	ch := make(chan struct{})
 	w := &queue.Item{
-		Priority: priority,
+		Priority: int(priority),
 		Done:     ch,
 	}
 	heap.Push(&p.waitList, w)

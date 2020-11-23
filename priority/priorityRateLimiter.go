@@ -115,42 +115,30 @@ func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 }
 
 func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) {
-	ctxCurrent, cancel := context.WithCancel(ctx)
-	go func(ctx context.Context) {
-		ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
-		for {
-			select {
-			case <-ticker.C:
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				p.mu.Lock()
-				if w.Priority < int(High) {
-					currentPriority := w.Priority
-					p.waitList.Update(w, currentPriority+1)
-				}
-				p.mu.Unlock()
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctxCurrent)
-
+	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
+	timer := time.NewTimer(time.Duration(*p.dynamicPeriod) * time.Millisecond)
 	for {
 		select {
 		case <-w.Done:
-			cancel()
 			return
 		case <-ctx.Done():
 			p.removeWaiter(w)
-			cancel()
 			return
-		case <-time.After(time.Duration(*p.timeout) * time.Millisecond):
+		case <-timer.C:
 			p.removeWaiter(w)
-			cancel()
 			return
+		case <-ticker.C:
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			p.mu.Lock()
+			if w.Priority < int(High) {
+				currentPriority := w.Priority
+				p.waitList.Update(w, currentPriority+1)
+			}
+			p.mu.Unlock()
 		}
 	}
 }

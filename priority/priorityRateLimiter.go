@@ -8,6 +8,8 @@ import (
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
+// PriorityValue defines the priority values of goroutines.
+// Greater priority value means higher priority
 type PriorityValue int
 
 const (

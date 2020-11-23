@@ -5,8 +5,8 @@
 
 ## About
 
-concurrency-limiter is a minimalistic package that allows you to limit the number of concurrent goroutines accessing a resource with support for
-timeouts and priority of goroutines.
+concurrency-limiter allows you to limit the number of goroutines accessing a resource with support for
+timeouts and dynamic priority of goroutines.
 
 ## Examples
 

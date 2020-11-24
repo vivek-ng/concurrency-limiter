@@ -15,12 +15,13 @@ timeouts and dynamic priority of goroutines.
 
 ```go
     nl := limiter.New(3)
-    nl.Wait()
+    ctx := context.Background()
+    nl.Wait(ctx)
     Execute......
     nl.Finish()
 ```
 In the above example , there can be a maximum of 3 goroutines accessing a resource concurrently. The other goroutines are added to the waiting list and are removed and given a 
-chance to access the resource in the FIFO order.
+chance to access the resource in the FIFO order. If the context is cancelled , the goroutine is removed from the waitlist.
 
 ### Limiter with Timeout
 
@@ -28,7 +29,8 @@ chance to access the resource in the FIFO order.
     nl := limiter.New(3,
     WithTimeout(10),
     )
-    nl.Wait()
+    ctx := context.Background()
+    nl.Wait(ctx)
     Execute......
     nl.Finish()
 ```
@@ -39,7 +41,8 @@ number of concurrent goroutines is greater than the limit specified.
 
 ```go
     nl := priority.NewLimiter(3)
-    nl.Wait(priority.High)
+    ctx := context.Background()
+    nl.Wait(ctx , priority.High)
     Execute......
     nl.Finish()
 ```
@@ -53,7 +56,8 @@ given the maximum preference because it is of high priority. In the case of tie 
     nl := priority.NewLimiter(3,
     WithDynamicPriority(5),
     )
-    nl.Wait(priority.Low)
+    ctx := context.Background()
+    nl.Wait(ctx , priority.Low)
     Execute......
     nl.Finish()
 ```
@@ -64,9 +68,13 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
 ```go
     nl := priority.NewLimiter(3,
     WithTimeout(30),
+    WithDynamicPriority(5),
     )
-    nl.Wait(priority.Low)
+    ctx := context.Background()
+    nl.Wait(ctx , priority.Low)
     Execute......
     nl.Finish()
 ```
-This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds.
+This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds. The low priority goroutines will get their
+priority increased every 5 ms.
+

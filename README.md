@@ -9,6 +9,29 @@
 concurrency-limiter allows you to limit the number of goroutines accessing a resource with support for
 timeouts , dynamic priority of goroutines and context cancellation of goroutines.
 
+### Installation
+
+To install concurrency-limiter:
+
+```
+go get github.com/vivek-ng/concurrency-limiter
+```
+
+Then import concurrency-limiter to use it
+
+```go
+    import(
+        github.com/vivek-ng/concurrency-limiter/limiter
+    )
+
+    nl := limiter.New(3)
+    ctx := context.Background()
+    nl.Wait(ctx)
+    Execute......
+    nl.Finish()
+
+```
+
 ## Examples
 
 ### Limiter
@@ -77,4 +100,8 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
 ```
 This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds. The low priority goroutines will get their
 priority increased every 5 ms.
+
+### Contribution
+
+Please feel free to open up issues , create PRs for bugs/features. All contributions are welcome :)
 

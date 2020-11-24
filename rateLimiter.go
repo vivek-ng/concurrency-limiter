@@ -23,6 +23,7 @@ type waiter struct {
 //
 // timeout: If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit. (in ms)
+// Limiter ....
 type Limiter struct {
 	count    int
 	limit    int
@@ -47,7 +48,7 @@ func New(limit int, options ...Option) *Limiter {
 	return l
 }
 
-// WithTimeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// WithTimeout : If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func WithTimeout(timeout int) func(*Limiter) {
 	return func(l *Limiter) {

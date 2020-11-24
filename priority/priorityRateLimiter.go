@@ -38,6 +38,7 @@ const (
 //
 // timeout: If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit. (in ms)
+// PriorityLimiter ....
 type PriorityLimiter struct {
 	count         int
 	limit         int
@@ -67,7 +68,7 @@ func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	return nl
 }
 
-// WithDynamicPriority: If this field is specified , priority is increased for low priority goroutines periodically by the
+// WithDynamicPriority : If this field is specified , priority is increased for low priority goroutines periodically by the
 // interval specified by dynamicPeriod
 func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
@@ -75,7 +76,7 @@ func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	}
 }
 
-// WithTimeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// WithTimeout : If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func WithTimeout(timeout int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {

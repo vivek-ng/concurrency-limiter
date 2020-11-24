@@ -141,3 +141,23 @@ func TestDynamicPriorityAndTimeout(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	assert.Zero(t, nl.waitListSize())
 }
+
+func TestDynamicPriorityWithTimeout_ContextDone(t *testing.T) {
+	nl := NewLimiter(3,
+		WithTimeout(300),
+		WithDynamicPriority(5))
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func(pr int) {
+			defer wg.Done()
+			nl.Wait(ctx, 1)
+		}(i)
+	}
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+	assert.Zero(t, nl.waitListSize())
+}

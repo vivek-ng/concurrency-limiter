@@ -128,8 +128,10 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 			p.removeWaiter(w)
 			return
 		case <-ticker.C:
+			// edge case where we receive ctx.Done and ticker.C at the same time...
 			select {
 			case <-ctx.Done():
+				p.removeWaiter(w)
 				return
 			default:
 			}

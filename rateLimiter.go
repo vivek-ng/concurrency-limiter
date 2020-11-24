@@ -13,23 +13,13 @@ type waiter struct {
 	done chan struct{}
 }
 
-// Limiter
-// limit: max number of concurrent goroutines that can access aresource
-//
-// count: current number of goroutines accessing a resource
-//
-// waitList: list of goroutines waiting to access a resource. Goroutines will be added to
-// this list if the number of concurrent requests are greater than the limit specified
-//
-// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
-// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit. (in ms)
-// Limiter ....
+// Limiter stores the configuration need for concurrency limiter....
 type Limiter struct {
 	count    int
-	limit    int
+	Limit    int
 	mu       sync.Mutex
 	waitList list.List
-	timeout  *int
+	Timeout  *int
 }
 
 // Option is a type to configure the Limiter struct....
@@ -39,7 +29,7 @@ type Option func(*Limiter)
 // Example: limiter.New(4, WithTimeout(5))
 func New(limit int, options ...Option) *Limiter {
 	l := &Limiter{
-		limit: limit,
+		Limit: limit,
 	}
 
 	for _, o := range options {
@@ -52,7 +42,7 @@ func New(limit int, options ...Option) *Limiter {
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func WithTimeout(timeout int) func(*Limiter) {
 	return func(l *Limiter) {
-		l.timeout = &timeout
+		l.Timeout = &timeout
 	}
 }
 
@@ -64,10 +54,10 @@ func (l *Limiter) Wait(ctx context.Context) {
 	if ok {
 		return
 	}
-	if l.timeout != nil {
+	if l.Timeout != nil {
 		select {
 		case <-ch:
-		case <-time.After((time.Duration(*l.timeout) * time.Millisecond)):
+		case <-time.After((time.Duration(*l.Timeout) * time.Millisecond)):
 			l.removeWaiter(ch)
 		case <-ctx.Done():
 		}
@@ -101,7 +91,7 @@ func (l *Limiter) proceed() (bool, chan struct{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.count < l.limit {
+	if l.count < l.Limit {
 		l.count++
 		return true, nil
 	}

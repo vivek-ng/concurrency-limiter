@@ -24,28 +24,14 @@ const (
 	High PriorityValue = 4
 )
 
-// PriorityLimiter
-// limit: max number of concurrent goroutines that can access aresource
-//
-// count: current number of goroutines accessing a resource
-//
-// waitList: Priority queue of goroutines waiting to access a resource. Goroutines will be added to
-// this list if the number of concurrent requests are greater than the limit specified. Greater value for priority means
-// higher priority for that particular goroutine.
-//
-// dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
-// interval specified by dynamicPeriod (in ms)
-//
-// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
-// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit. (in ms)
-// PriorityLimiter ....
+// PriorityLimiter stores the configuration need for priority concurrency limiter....
 type PriorityLimiter struct {
 	count         int
-	limit         int
+	Limit         int
 	mu            sync.Mutex
 	waitList      queue.PriorityQueue
-	dynamicPeriod *int
-	timeout       *int
+	DynamicPeriod *int
+	Timeout       *int
 }
 
 // Option is a type to configure the Limiter struct....
@@ -56,7 +42,7 @@ type Option func(*PriorityLimiter)
 func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	pq := make(queue.PriorityQueue, 0)
 	nl := &PriorityLimiter{
-		limit:    limit,
+		Limit:    limit,
 		waitList: pq,
 	}
 
@@ -72,7 +58,7 @@ func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 // interval specified by dynamicPeriod
 func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
-		p.dynamicPeriod = &dynamicPeriod
+		p.DynamicPeriod = &dynamicPeriod
 	}
 }
 
@@ -80,7 +66,7 @@ func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func WithTimeout(timeout int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
-		p.timeout = &timeout
+		p.Timeout = &timeout
 	}
 }
 
@@ -99,7 +85,7 @@ func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 		return
 	}
 
-	if p.dynamicPeriod == nil && p.timeout == nil {
+	if p.DynamicPeriod == nil && p.Timeout == nil {
 		select {
 		case <-w.Done:
 		case <-ctx.Done():
@@ -108,12 +94,12 @@ func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 		return
 	}
 
-	if p.dynamicPeriod != nil && p.timeout != nil {
+	if p.DynamicPeriod != nil && p.Timeout != nil {
 		p.dynamicPriorityAndTimeout(ctx, w)
 		return
 	}
 
-	if p.timeout != nil {
+	if p.Timeout != nil {
 		p.handleTimeout(ctx, w)
 		return
 	}
@@ -122,8 +108,8 @@ func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 }
 
 func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) {
-	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
-	timer := time.NewTimer(time.Duration(*p.timeout) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
+	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
 	for {
 		select {
 		case <-w.Done:
@@ -153,7 +139,7 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 }
 
 func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) {
-	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
 	for {
 		select {
 		case <-w.Done:
@@ -175,7 +161,7 @@ func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.It
 func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item) {
 	select {
 	case <-w.Done:
-	case <-time.After(time.Duration(*p.timeout) * time.Millisecond):
+	case <-time.After(time.Duration(*p.Timeout) * time.Millisecond):
 		p.removeWaiter(w)
 	case <-ctx.Done():
 		p.removeWaiter(w)
@@ -197,7 +183,7 @@ func (p *PriorityLimiter) proceed(priority PriorityValue) (bool, *queue.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.count < p.limit {
+	if p.count < p.Limit {
 		p.count++
 		return true, nil
 	}

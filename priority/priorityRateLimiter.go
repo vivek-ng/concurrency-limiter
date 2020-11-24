@@ -14,12 +14,17 @@ import (
 type PriorityValue int
 
 const (
-	Low        PriorityValue = 1
-	Medium     PriorityValue = 2
+	// Low Priority....
+	Low PriorityValue = 1
+	// Medium Priority....
+	Medium PriorityValue = 2
+	// MediumHigh Priority....
 	MediumHigh PriorityValue = 3
-	High       PriorityValue = 4
+	// High Priority.....
+	High PriorityValue = 4
 )
 
+// PriorityLimiter
 // limit: max number of concurrent goroutines that can access aresource
 //
 // count: current number of goroutines accessing a resource
@@ -42,6 +47,7 @@ type PriorityLimiter struct {
 	timeout       *int
 }
 
+// Option is a type to configure the Limiter struct....
 type Option func(*PriorityLimiter)
 
 // NewLimiter creates an instance of *PriorityLimiter. Configure the Limiter with the options specified.
@@ -61,7 +67,7 @@ func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	return nl
 }
 
-// dynamicPeriod: If this field is specified , priority is increased for low priority goroutines periodically by the
+// WithDynamicPriority: If this field is specified , priority is increased for low priority goroutines periodically by the
 // interval specified by dynamicPeriod
 func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
@@ -69,7 +75,7 @@ func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	}
 }
 
-// timeout: If this field is specified , goroutines will be automatically removed from the waitlist
+// WithTimeout: If this field is specified , goroutines will be automatically removed from the waitlist
 // after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
 func WithTimeout(timeout int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {

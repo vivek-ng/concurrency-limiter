@@ -7,7 +7,7 @@
 ## About
 
 concurrency-limiter allows you to limit the number of goroutines accessing a resource with support for
-timeouts and dynamic priority of goroutines.
+timeouts , dynamic priority of goroutines and context cancellation of goroutines.
 
 ## Examples
 

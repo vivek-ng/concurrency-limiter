@@ -211,6 +211,15 @@ func (p *PriorityLimiter) Finish() {
 	close(it.Done)
 }
 
+// Execute wraps the function to limit the concurrency.....
+func (l *PriorityLimiter) Execute(ctx context.Context,
+	priority PriorityValue,
+	callback func() error) error {
+	l.Wait(ctx, priority)
+	defer l.Finish()
+	return callback()
+}
+
 // only used in tests
 func (p *PriorityLimiter) waitListSize() int {
 	p.mu.Lock()

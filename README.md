@@ -101,6 +101,18 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
 This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds. The low priority goroutines will get their
 priority increased every 5 ms.
 
+### Executable Function
+
+```go
+    nl := priority.NewLimiter(3)
+    ctx := context.Background()
+    nl.Execute(ctx , priority.Low , func()error {
+        return sendMetrics()
+    })
+```
+
+Executable function will allow you to wrap your function and execute them with concurrency limit. This function is a wrapper on top of the Wait() and Finish() functions.
+
 ### Contribution
 
 Please feel free to open up issues , create PRs for bugs/features. All contributions are welcome :)

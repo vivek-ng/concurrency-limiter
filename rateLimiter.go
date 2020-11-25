@@ -118,6 +118,13 @@ func (l *Limiter) Finish() {
 	close(w.done)
 }
 
+// Execute wraps the function to limit the concurrency.....
+func (l *Limiter) Execute(ctx context.Context, callback func() error) error {
+	l.Wait(ctx)
+	defer l.Finish()
+	return callback()
+}
+
 // only used in tests
 func (l *Limiter) waitListSize() int {
 	l.mu.Lock()

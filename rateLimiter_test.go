@@ -92,3 +92,22 @@ func TestConcurrentRateLimiter_ContextDone(t *testing.T) {
 	assert.Zero(t, l.waitListSize())
 	assert.Equal(t, 5, l.count)
 }
+
+func TestExecute(t *testing.T) {
+	l := New(2)
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	wg.Add(5)
+	for i := 0; i < 5; i++ {
+		go func() {
+			defer wg.Done()
+			_ = l.Execute(ctx, func() error {
+				return nil
+			})
+		}()
+	}
+
+	wg.Wait()
+	assert.Zero(t, l.waitListSize())
+	assert.Zero(t, l.count)
+}

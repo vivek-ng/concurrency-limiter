@@ -47,3 +47,8 @@ func TestPriorityQueue_SamePriority(t *testing.T) {
 	}
 	assert.Equal(t, expectedVals, actualVals)
 }
+
+func TestTop_nil(t *testing.T) {
+	pq := make(PriorityQueue, 0)
+	assert.Nil(t, pq.Top())
+}

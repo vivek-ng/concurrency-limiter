@@ -51,9 +51,8 @@ Below are some examples of using this library. To run real examples , please che
                 defer wg.Done()
                 ctx := context.Background()
                 nl.Wait(ctx)
-                fmt.Println("executing action....: ", index, nl.Count())
+                fmt.Println("executing action...: ", "index: ", index, "current number of goroutines: ", nl.Count())
                 nl.Finish()
-                fmt.Println("finished action...: ", index)
             }(i)
         }
         wg.Wait()
@@ -76,9 +75,8 @@ Below are some examples of using this library. To run real examples , please che
                 } else {
                     pr.Wait(ctx, priority.Low)
                 }
-                fmt.Println("executing action...: ", index, pr.Count())
+                fmt.Println("executing action...: ", "index: ", index, "current number of goroutines: ", pr.Count())
                 pr.Finish()
-                fmt.Println("finished action....: ", index)
             }(i)
         }
         wg.Wait()

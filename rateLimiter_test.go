@@ -101,7 +101,7 @@ func TestExecute(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			_ = l.Execute(ctx, func() error {
+			_ = l.Run(ctx, func() error {
 				return nil
 			})
 		}()

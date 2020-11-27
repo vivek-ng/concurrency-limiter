@@ -215,7 +215,7 @@ func (p *PriorityLimiter) Finish() {
 }
 
 // Execute wraps the function to limit the concurrency.....
-func (p *PriorityLimiter) Execute(ctx context.Context,
+func (p *PriorityLimiter) Run(ctx context.Context,
 	priority PriorityValue,
 	callback func() error) error {
 	p.Wait(ctx, priority)

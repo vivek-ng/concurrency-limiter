@@ -119,7 +119,7 @@ func (l *Limiter) Finish() {
 	close(w.done)
 }
 
-// Execute wraps the function to limit the concurrency.....
+// Run wraps the function to limit the concurrency.....
 func (l *Limiter) Run(ctx context.Context, callback func() error) error {
 	l.Wait(ctx)
 	defer l.Finish()

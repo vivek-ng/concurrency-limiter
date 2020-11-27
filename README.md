@@ -40,6 +40,10 @@ Below are some examples of using this library. To run real examples , please che
 ### Limiter
 
 ```go
+    import(
+        github.com/vivek-ng/concurrency-limiter/limiter
+    )
+
     func main() {
         nl := limiter.New(3)
 
@@ -63,6 +67,10 @@ Below are some examples of using this library. To run real examples , please che
 ### Priority Limiter
 
 ```go
+    import(
+        github.com/vivek-ng/concurrency-limiter/priority
+    )
+    
     func main() {
         pr := priority.NewLimiter(1)
         var wg sync.WaitGroup

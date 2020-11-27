@@ -82,7 +82,7 @@ func TestPriorityLimiter_Timeout(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		nl.Finish()
 	}
-	assert.Zero(t, nl.count)
+	assert.Zero(t, nl.Count())
 	assert.Zero(t, nl.waitListSize())
 }
 
@@ -178,5 +178,5 @@ func TestExecute(t *testing.T) {
 
 	wg.Wait()
 	assert.Zero(t, l.waitListSize())
-	assert.Zero(t, l.count)
+	assert.Zero(t, l.Count())
 }

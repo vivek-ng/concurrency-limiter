@@ -67,7 +67,7 @@ func TestConcurrentRateLimiterTimeout(t *testing.T) {
 	wg.Wait()
 	l.Finish()
 	l.Finish()
-	assert.Equal(t, 3, l.count)
+	assert.Equal(t, 3, l.Count())
 	assert.Equal(t, 0, l.waitList.Len())
 }
 
@@ -90,7 +90,7 @@ func TestConcurrentRateLimiter_ContextDone(t *testing.T) {
 	cancel()
 	time.Sleep(100 * time.Millisecond)
 	assert.Zero(t, l.waitListSize())
-	assert.Equal(t, 5, l.count)
+	assert.Equal(t, 5, l.Count())
 }
 
 func TestExecute(t *testing.T) {
@@ -109,5 +109,5 @@ func TestExecute(t *testing.T) {
 
 	wg.Wait()
 	assert.Zero(t, l.waitListSize())
-	assert.Zero(t, l.count)
+	assert.Zero(t, l.Count())
 }

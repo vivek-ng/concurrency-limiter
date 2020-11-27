@@ -76,8 +76,8 @@ func (l *Limiter) removeWaiter(ch chan struct{}) {
 		ele := w.Value.(waiter)
 		if ele.done == ch {
 			close(ch)
+			l.count++
 			l.waitList.Remove(w)
-			l.count += 1
 			break
 		}
 	}
@@ -115,6 +115,7 @@ func (l *Limiter) Finish() {
 	}
 	w := l.waitList.Remove(first).(waiter)
 	w.done <- struct{}{}
+	l.count++
 	close(w.done)
 }
 
@@ -131,4 +132,11 @@ func (l *Limiter) waitListSize() int {
 	defer l.mu.Unlock()
 	len := l.waitList.Len()
 	return len
+}
+
+// Count returns the current number of concurrent gouroutines executing...
+func (l *Limiter) Count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.count
 }

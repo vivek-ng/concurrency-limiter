@@ -110,16 +110,17 @@ func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
 func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) {
 	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
 	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
+WaitLoop:
 	for {
 		select {
 		case <-w.Done:
-			return
+			break WaitLoop
 		case <-ctx.Done():
 			p.removeWaiter(w)
-			return
+			break WaitLoop
 		case <-timer.C:
 			p.removeWaiter(w)
-			return
+			break WaitLoop
 		case <-ticker.C:
 			// edge case where we receive ctx.Done and ticker.C at the same time...
 			select {
@@ -140,10 +141,11 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 
 func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) {
 	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
+WaitLoop:
 	for {
 		select {
 		case <-w.Done:
-			return
+			break WaitLoop
 		case <-ticker.C:
 			p.mu.Lock()
 			if w.Priority < int(High) {
@@ -153,7 +155,7 @@ func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.It
 			p.mu.Unlock()
 		case <-ctx.Done():
 			p.removeWaiter(w)
-			return
+			break WaitLoop
 		}
 	}
 }
@@ -171,8 +173,8 @@ func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item) {
 func (p *PriorityLimiter) removeWaiter(w *queue.Item) {
 	p.mu.Lock()
 	heap.Remove(&p.waitList, p.waitList.GetIndex(w))
-	p.count += 1
 	close(w.Done)
+	p.count++
 	p.mu.Unlock()
 }
 
@@ -208,6 +210,7 @@ func (p *PriorityLimiter) Finish() {
 	ele := heap.Pop(&p.waitList)
 	it := ele.(*queue.Item)
 	it.Done <- struct{}{}
+	p.count++
 	close(it.Done)
 }
 
@@ -226,4 +229,11 @@ func (p *PriorityLimiter) waitListSize() int {
 	defer p.mu.Unlock()
 	len := p.waitList.Len()
 	return len
+}
+
+// Count returns the current number of concurrent gouroutines executing...
+func (p *PriorityLimiter) Count() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.count
 }

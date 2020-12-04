@@ -1,5 +1,6 @@
 # concurrency-limiter
 
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![GoDoc reference example](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/vivek-ng/concurrency-limiter)
 [![GoReportCard example](https://goreportcard.com/badge/github.com/nanomsg/mangos)](https://goreportcard.com/report/github.com/vivek-ng/concurrency-limiter)
 [![codecov](https://codecov.io/gh/vivek-ng/concurrency-limiter/branch/main/graph/badge.svg?token=UFN7OqUNDH)](https://codecov.io/gh/vivek-ng/concurrency-limiter)

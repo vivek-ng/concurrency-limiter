@@ -14,7 +14,6 @@ import (
 type PriorityValue int
 
 const (
-	
 	// Low Priority....
 	Low PriorityValue = 1
 	// Medium Priority....

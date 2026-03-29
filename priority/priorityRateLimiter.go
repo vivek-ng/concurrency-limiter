@@ -32,21 +32,21 @@ type PriorityLimiter struct {
 	Limit    int
 	mu       sync.Mutex
 	waitList queue.PriorityQueue
-	// Deprecated: configure via WithDynamicPriority. Runtime behavior uses an internal snapshot.
+	// Deprecated: configure via WithDynamicPriorityDuration. Runtime behavior uses an internal snapshot.
 	DynamicPeriod *int
-	// Deprecated: configure via WithTimeout. Runtime behavior uses an internal snapshot.
+	// Deprecated: configure via WithTimeoutDuration. Runtime behavior uses an internal snapshot.
 	Timeout *int
 
 	limit         int
-	dynamicPeriod *int
-	timeout       *int
+	dynamicPeriod *time.Duration
+	timeout       *time.Duration
 }
 
 // Option is a type to configure the Limiter struct....
 type Option func(*PriorityLimiter)
 
 // NewLimiter creates an instance of *PriorityLimiter. Configure the Limiter with the options specified.
-// Example: priority.NewLimiter(4, WithDynamicPriority(5))
+// Example: priority.NewLimiter(4, WithDynamicPriorityDuration(5*time.Millisecond))
 func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	pq := make(queue.PriorityQueue, 0)
 	nl := &PriorityLimiter{
@@ -63,20 +63,33 @@ func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	return nl
 }
 
-// WithDynamicPriority : If this field is specified , priority is increased for low priority goroutines periodically by the
-// interval specified by dynamicPeriod
+// WithDynamicPriority configures dynamic priority cadence in milliseconds.
+// Deprecated: use WithDynamicPriorityDuration.
 func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
+	return WithDynamicPriorityDuration(time.Duration(dynamicPeriod) * time.Millisecond)
+}
+
+// WithDynamicPriorityDuration configures the dynamic priority cadence as a time.Duration.
+func WithDynamicPriorityDuration(dynamicPeriod time.Duration) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
-		p.DynamicPeriod = &dynamicPeriod
+		ms := int(dynamicPeriod / time.Millisecond)
+		p.DynamicPeriod = &ms
 		p.dynamicPeriod = &dynamicPeriod
 	}
 }
 
-// WithTimeout : If this field is specified , goroutines will be removed from the waitlist
-// after the time passes the timeout specified and Wait will return limiter.ErrTimeout.
+// WithTimeout configures timeout in milliseconds.
+// Deprecated: use WithTimeoutDuration.
 func WithTimeout(timeout int) func(*PriorityLimiter) {
+	return WithTimeoutDuration(time.Duration(timeout) * time.Millisecond)
+}
+
+// WithTimeoutDuration configures timeout as a time.Duration.
+// Goroutines are removed from the waitlist after the timeout and Wait returns limiter.ErrTimeout.
+func WithTimeoutDuration(timeout time.Duration) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
-		p.Timeout = &timeout
+		ms := int(timeout / time.Millisecond)
+		p.Timeout = &ms
 		p.timeout = &timeout
 	}
 }
@@ -130,8 +143,8 @@ func (p *PriorityLimiter) wait(ctx context.Context, priority PriorityValue, allo
 }
 
 func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item, allowBypass bool) (limiter.AdmissionResult, error) {
-	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
-	timer := time.NewTimer(time.Duration(*p.timeout) * time.Millisecond)
+	ticker := time.NewTicker(*p.dynamicPeriod)
+	timer := time.NewTimer(*p.timeout)
 	defer ticker.Stop()
 	defer timer.Stop()
 	for {
@@ -176,7 +189,7 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 }
 
 func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) (limiter.AdmissionResult, error) {
-	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
+	ticker := time.NewTicker(*p.dynamicPeriod)
 	defer ticker.Stop()
 	for {
 		select {
@@ -203,7 +216,7 @@ func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.It
 }
 
 func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item, allowBypass bool) (limiter.AdmissionResult, error) {
-	timer := time.NewTimer(time.Duration(*p.timeout) * time.Millisecond)
+	timer := time.NewTimer(*p.timeout)
 	defer timer.Stop()
 	select {
 	case <-w.Done:

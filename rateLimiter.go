@@ -18,11 +18,16 @@ type waiter struct {
 
 // Limiter stores the configuration need for concurrency limiter....
 type Limiter struct {
-	count    int
+	count int
+	// Deprecated: configure via New. Runtime behavior uses an internal snapshot.
 	Limit    int
 	mu       sync.Mutex
 	waitList list.List
-	Timeout  *int
+	// Deprecated: configure via WithTimeout. Runtime behavior uses an internal snapshot.
+	Timeout *int
+
+	limit   int
+	timeout *int
 }
 
 // Option is a type to configure the Limiter struct....
@@ -33,6 +38,7 @@ type Option func(*Limiter)
 func New(limit int, options ...Option) *Limiter {
 	l := &Limiter{
 		Limit: limit,
+		limit: limit,
 	}
 
 	for _, o := range options {
@@ -46,6 +52,7 @@ func New(limit int, options ...Option) *Limiter {
 func WithTimeout(timeout int) func(*Limiter) {
 	return func(l *Limiter) {
 		l.Timeout = &timeout
+		l.timeout = &timeout
 	}
 }
 
@@ -67,8 +74,8 @@ func (l *Limiter) wait(ctx context.Context, allowBypass bool) (AdmissionResult, 
 	if ok {
 		return AdmissionAcquired, nil
 	}
-	if l.Timeout != nil {
-		timer := time.NewTimer(time.Duration(*l.Timeout) * time.Millisecond)
+	if l.timeout != nil {
+		timer := time.NewTimer(time.Duration(*l.timeout) * time.Millisecond)
 		defer timer.Stop()
 		select {
 		case <-ch:
@@ -120,7 +127,7 @@ func (l *Limiter) proceed() (bool, chan struct{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.count < l.Limit {
+	if l.count < l.limit {
 		l.count++
 		return true, nil
 	}

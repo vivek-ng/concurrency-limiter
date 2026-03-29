@@ -23,18 +23,18 @@ type Limiter struct {
 	Limit    int
 	mu       sync.Mutex
 	waitList list.List
-	// Deprecated: configure via WithTimeout. Runtime behavior uses an internal snapshot.
+	// Deprecated: configure via WithTimeoutDuration. Runtime behavior uses an internal snapshot.
 	Timeout *int
 
 	limit   int
-	timeout *int
+	timeout *time.Duration
 }
 
 // Option is a type to configure the Limiter struct....
 type Option func(*Limiter)
 
 // New creates an instance of *Limiter. Configure the Limiter with the options specified.
-// Example: limiter.New(4, WithTimeout(5))
+// Example: limiter.New(4, WithTimeoutDuration(5*time.Millisecond))
 func New(limit int, options ...Option) *Limiter {
 	l := &Limiter{
 		Limit: limit,
@@ -47,11 +47,18 @@ func New(limit int, options ...Option) *Limiter {
 	return l
 }
 
-// WithTimeout : If this field is specified , goroutines will be removed from the waitlist
-// after the time passes the timeout specified and Wait will return ErrTimeout.
+// WithTimeout configures timeout in milliseconds.
+// Deprecated: use WithTimeoutDuration.
 func WithTimeout(timeout int) func(*Limiter) {
+	return WithTimeoutDuration(time.Duration(timeout) * time.Millisecond)
+}
+
+// WithTimeoutDuration configures timeout as a time.Duration.
+// Goroutines are removed from the waitlist after the timeout and Wait returns ErrTimeout.
+func WithTimeoutDuration(timeout time.Duration) func(*Limiter) {
 	return func(l *Limiter) {
-		l.Timeout = &timeout
+		ms := int(timeout / time.Millisecond)
+		l.Timeout = &ms
 		l.timeout = &timeout
 	}
 }
@@ -75,7 +82,7 @@ func (l *Limiter) wait(ctx context.Context, allowBypass bool) (AdmissionResult, 
 		return AdmissionAcquired, nil
 	}
 	if l.timeout != nil {
-		timer := time.NewTimer(time.Duration(*l.timeout) * time.Millisecond)
+		timer := time.NewTimer(*l.timeout)
 		defer timer.Stop()
 		select {
 		case <-ch:

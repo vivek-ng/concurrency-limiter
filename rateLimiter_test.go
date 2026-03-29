@@ -71,7 +71,7 @@ func TestConcurrentRateLimiterBlocking(t *testing.T) {
 }
 
 func TestConcurrentRateLimiterTimeout(t *testing.T) {
-	l := New(2, WithTimeout(100))
+	l := New(2, WithTimeoutDuration(100*time.Millisecond))
 
 	var wg sync.WaitGroup
 	results := make(chan error, 5)
@@ -176,7 +176,7 @@ func TestRunDoesNotExecuteOnCanceledWait(t *testing.T) {
 }
 
 func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
-	l := New(1, WithTimeout(50))
+	l := New(1, WithTimeoutDuration(50*time.Millisecond))
 	assert.NoError(t, l.Wait(context.Background()))
 
 	var called int32
@@ -194,7 +194,7 @@ func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
 }
 
 func TestWaitOrBypassReturnsBypassedOnTimeout(t *testing.T) {
-	l := New(1, WithTimeout(50))
+	l := New(1, WithTimeoutDuration(50*time.Millisecond))
 	assert.NoError(t, l.Wait(context.Background()))
 
 	result, err := l.WaitOrBypass(context.Background())
@@ -208,7 +208,7 @@ func TestWaitOrBypassReturnsBypassedOnTimeout(t *testing.T) {
 }
 
 func TestWaitOrBypassReturnsCanceledContext(t *testing.T) {
-	l := New(1, WithTimeout(100))
+	l := New(1, WithTimeoutDuration(100*time.Millisecond))
 	assert.NoError(t, l.Wait(context.Background()))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -225,7 +225,7 @@ func TestWaitOrBypassReturnsCanceledContext(t *testing.T) {
 }
 
 func TestRunOrBypassExecutesCallbackOnTimeoutWithoutFinishing(t *testing.T) {
-	l := New(1, WithTimeout(50))
+	l := New(1, WithTimeoutDuration(50*time.Millisecond))
 	assert.NoError(t, l.Wait(context.Background()))
 
 	var called int32
@@ -244,7 +244,7 @@ func TestRunOrBypassExecutesCallbackOnTimeoutWithoutFinishing(t *testing.T) {
 }
 
 func TestRunOrBypassAcquiredStillFinishes(t *testing.T) {
-	l := New(1, WithTimeout(50))
+	l := New(1, WithTimeoutDuration(50*time.Millisecond))
 
 	var called int32
 	result, err := l.RunOrBypass(context.Background(), func() error {
@@ -282,7 +282,7 @@ func TestExportedFieldMutationDoesNotAffectRuntimeLimit(t *testing.T) {
 }
 
 func TestExportedFieldMutationDoesNotAffectRuntimeTimeout(t *testing.T) {
-	l := New(1, WithTimeout(50))
+	l := New(1, WithTimeoutDuration(50*time.Millisecond))
 	l.Timeout = nil
 
 	assert.NoError(t, l.Wait(context.Background()))
@@ -294,6 +294,23 @@ func TestExportedFieldMutationDoesNotAffectRuntimeTimeout(t *testing.T) {
 
 	err := <-done
 	assert.True(t, errors.Is(err, ErrTimeout))
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestDeprecatedWithTimeoutStillUsesMilliseconds(t *testing.T) {
+	l := New(1, WithTimeout(50))
+	assert.Equal(t, 50, *l.Timeout)
+
+	assert.NoError(t, l.Wait(context.Background()))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- l.Wait(context.Background())
+	}()
+
+	assert.True(t, errors.Is(<-done, ErrTimeout))
 
 	l.Finish()
 	assert.Zero(t, l.Count())

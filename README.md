@@ -26,6 +26,7 @@ Then import concurrency-limiter to use it
 
 ```go
     import(
+        "time"
         github.com/vivek-ng/concurrency-limiter/limiter
     )
 
@@ -48,6 +49,7 @@ Below are some examples of using this library. To run real examples , please che
 
 ```go
     import(
+        "time"
         github.com/vivek-ng/concurrency-limiter/limiter
     )
 
@@ -77,6 +79,7 @@ Below are some examples of using this library. To run real examples , please che
 
 ```go
     import(
+        "time"
         github.com/vivek-ng/concurrency-limiter/priority
     )
     
@@ -126,7 +129,7 @@ chance to access the resource in the FIFO order. If the context is cancelled , t
 
 ```go
     nl := limiter.New(3,
-    WithTimeout(10),
+    WithTimeoutDuration(10 * time.Millisecond),
     )
     ctx := context.Background()
     if err := nl.Wait(ctx); err != nil {
@@ -141,7 +144,7 @@ In the above example , the goroutines will wait for a maximum of 10 milliseconds
 
 ```go
     nl := limiter.New(3,
-    WithTimeout(10),
+    WithTimeoutDuration(10 * time.Millisecond),
     )
     ctx := context.Background()
     result, err := nl.WaitOrBypass(ctx)
@@ -175,7 +178,7 @@ given the maximum preference because it is of high priority. In the case of tie 
 
 ```go
     nl := priority.NewLimiter(3,
-    WithDynamicPriority(5),
+    WithDynamicPriorityDuration(5 * time.Millisecond),
     )
     ctx := context.Background()
     if err := nl.Wait(ctx , priority.Low); err != nil {
@@ -190,8 +193,8 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
 
 ```go
     nl := priority.NewLimiter(3,
-    WithTimeout(30),
-    WithDynamicPriority(5),
+    WithTimeoutDuration(30 * time.Millisecond),
+    WithDynamicPriorityDuration(5 * time.Millisecond),
     )
     ctx := context.Background()
     if err := nl.Wait(ctx , priority.Low); err != nil {
@@ -207,8 +210,8 @@ priority increased every 5 ms.
 
 ```go
     nl := priority.NewLimiter(3,
-    WithTimeout(30),
-    WithDynamicPriority(5),
+    WithTimeoutDuration(30 * time.Millisecond),
+    WithDynamicPriorityDuration(5 * time.Millisecond),
     )
     ctx := context.Background()
     result, err := nl.WaitOrBypass(ctx , priority.Low)
@@ -240,7 +243,7 @@ If `Wait` fails because the context is cancelled or the timeout expires, `Run` r
 
 ```go
     nl := priority.NewLimiter(3,
-    WithTimeout(30),
+    WithTimeoutDuration(30 * time.Millisecond),
     )
     ctx := context.Background()
     result, err := nl.RunOrBypass(ctx , priority.Low , func()error {
@@ -253,6 +256,8 @@ If `Wait` fails because the context is cancelled or the timeout expires, `Run` r
 ```
 
 `RunOrBypass` executes the callback after either real admission or timeout bypass. It returns `limiter.AdmissionAcquired` when the limiter granted capacity and `limiter.AdmissionBypassed` when the callback ran outside the limiter after the timeout.
+
+The older `WithTimeout(int)` and `WithDynamicPriority(int)` helpers are still supported for compatibility and continue to interpret their arguments as milliseconds.
 
 ### Contribution
 

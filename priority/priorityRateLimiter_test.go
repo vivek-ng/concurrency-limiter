@@ -51,7 +51,7 @@ func TestPriorityLimiterFinishReleasesHighestPriorityWaiter(t *testing.T) {
 }
 
 func TestPriorityLimiterTimeout(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(100))
+	nl := NewLimiter(1, WithTimeoutDuration(100*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), Low))
 
 	var wg sync.WaitGroup
@@ -124,7 +124,7 @@ func TestPriorityLimiterContextDone(t *testing.T) {
 }
 
 func TestDynamicPriorityPromotesLowPriorityWaiters(t *testing.T) {
-	nl := NewLimiter(1, WithDynamicPriority(10))
+	nl := NewLimiter(1, WithDynamicPriorityDuration(10*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), High))
 
 	var wg sync.WaitGroup
@@ -155,7 +155,7 @@ func TestDynamicPriorityPromotesLowPriorityWaiters(t *testing.T) {
 }
 
 func TestDynamicPriorityCanceledWaiterIsRemovedSafely(t *testing.T) {
-	nl := NewLimiter(1, WithDynamicPriority(5))
+	nl := NewLimiter(1, WithDynamicPriorityDuration(5*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), High))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -176,7 +176,7 @@ func TestDynamicPriorityCanceledWaiterIsRemovedSafely(t *testing.T) {
 }
 
 func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(50))
+	nl := NewLimiter(1, WithTimeoutDuration(50*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), High))
 
 	var called int32
@@ -194,7 +194,7 @@ func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
 }
 
 func TestPriorityLimiterWaitOrBypassReturnsBypassedOnTimeout(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(50))
+	nl := NewLimiter(1, WithTimeoutDuration(50*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), High))
 
 	result, err := nl.WaitOrBypass(context.Background(), Low)
@@ -208,7 +208,7 @@ func TestPriorityLimiterWaitOrBypassReturnsBypassedOnTimeout(t *testing.T) {
 }
 
 func TestPriorityLimiterWaitOrBypassReturnsCanceledContext(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(100))
+	nl := NewLimiter(1, WithTimeoutDuration(100*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), High))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -225,7 +225,7 @@ func TestPriorityLimiterWaitOrBypassReturnsCanceledContext(t *testing.T) {
 }
 
 func TestPriorityRunOrBypassExecutesCallbackOnTimeoutWithoutFinishing(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(50))
+	nl := NewLimiter(1, WithTimeoutDuration(50*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), High))
 
 	var called int32
@@ -244,7 +244,7 @@ func TestPriorityRunOrBypassExecutesCallbackOnTimeoutWithoutFinishing(t *testing
 }
 
 func TestPriorityRunOrBypassAcquiredStillFinishes(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(50))
+	nl := NewLimiter(1, WithTimeoutDuration(50*time.Millisecond))
 
 	var called int32
 	result, err := nl.RunOrBypass(context.Background(), Low, func() error {
@@ -259,7 +259,7 @@ func TestPriorityRunOrBypassAcquiredStillFinishes(t *testing.T) {
 }
 
 func TestPrioritySoftModeStillReleasesHighestPriorityBeforeBypassing(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(100))
+	nl := NewLimiter(1, WithTimeoutDuration(100*time.Millisecond))
 	assert.NoError(t, nl.Wait(context.Background(), Low))
 
 	highDone := make(chan limiter.AdmissionResult, 1)
@@ -321,7 +321,7 @@ func TestPriorityExportedFieldMutationDoesNotAffectRuntimeLimit(t *testing.T) {
 }
 
 func TestPriorityExportedFieldMutationDoesNotAffectRuntimeTimeouts(t *testing.T) {
-	nl := NewLimiter(1, WithTimeout(50), WithDynamicPriority(5))
+	nl := NewLimiter(1, WithTimeoutDuration(50*time.Millisecond), WithDynamicPriorityDuration(5*time.Millisecond))
 	nl.Timeout = nil
 	nl.DynamicPeriod = nil
 
@@ -334,6 +334,24 @@ func TestPriorityExportedFieldMutationDoesNotAffectRuntimeTimeouts(t *testing.T)
 
 	err := <-done
 	assert.True(t, errors.Is(err, limiter.ErrTimeout))
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
+func TestDeprecatedPriorityTimingOptionsStillUseMilliseconds(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(50), WithDynamicPriority(5))
+	assert.Equal(t, 50, *nl.Timeout)
+	assert.Equal(t, 5, *nl.DynamicPeriod)
+
+	assert.NoError(t, nl.Wait(context.Background(), High))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- nl.Wait(context.Background(), Low)
+	}()
+
+	assert.True(t, errors.Is(<-done, limiter.ErrTimeout))
 
 	nl.Finish()
 	assert.Zero(t, nl.Count())

@@ -17,9 +17,13 @@ func main() {
 			defer wg.Done()
 			ctx := context.Background()
 			if index%2 == 1 {
-				pr.Wait(ctx, priority.High)
+				if err := pr.Wait(ctx, priority.High); err != nil {
+					return
+				}
 			} else {
-				pr.Wait(ctx, priority.Low)
+				if err := pr.Wait(ctx, priority.Low); err != nil {
+					return
+				}
 			}
 			fmt.Println("executing action...: ", "index: ", index, "current number of goroutines: ", pr.Count())
 			pr.Finish()

@@ -21,7 +21,7 @@ func TestPriorityQueue(t *testing.T) {
 	actualVals := make([]int, 0)
 	for pq.Len() > 0 {
 		topEle := pq.Top().(Item)
-		_ = pq.GetIndex(&topEle)
+		_, _ = pq.FindIndex(pq[0])
 		_ = heap.Pop(&pq).(*Item)
 		actualVals = append(actualVals, topEle.Priority)
 	}

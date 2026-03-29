@@ -27,7 +27,9 @@ Then import concurrency-limiter to use it
 
     nl := limiter.New(3)
     ctx := context.Background()
-    nl.Wait(ctx)
+    if err := nl.Wait(ctx); err != nil {
+        return
+    }
     // Perform actions .........
     nl.Finish()
 
@@ -55,7 +57,9 @@ Below are some examples of using this library. To run real examples , please che
             go func(index int) {
                 defer wg.Done()
                 ctx := context.Background()
-                nl.Wait(ctx)
+                if err := nl.Wait(ctx); err != nil {
+                    return
+                }
                 // in real life , this can be DB operations , message publish to queue ........
                 fmt.Println("executing action...: ", "index: ", index, "current number of goroutines: ", nl.Count())
                 nl.Finish()
@@ -81,9 +85,13 @@ Below are some examples of using this library. To run real examples , please che
                 defer wg.Done()
                 ctx := context.Background()
                 if index%2 == 1 {
-                    pr.Wait(ctx, priority.High)
+                    if err := pr.Wait(ctx, priority.High); err != nil {
+                        return
+                    }
                 } else {
-                    pr.Wait(ctx, priority.Low)
+                    if err := pr.Wait(ctx, priority.Low); err != nil {
+                        return
+                    }
                 }
                 // in real life , this can be DB operations , message publish to queue ........
                 fmt.Println("executing action...: ", "index: ", index, "current number of goroutines: ", pr.Count())
@@ -101,12 +109,14 @@ Below are some examples of using this library. To run real examples , please che
 ```go
     nl := limiter.New(3)
     ctx := context.Background()
-    nl.Wait(ctx)
+    if err := nl.Wait(ctx); err != nil {
+        return
+    }
     // Perform actions .........
     nl.Finish()
 ```
 In the above example , there can be a maximum of 3 goroutines accessing a resource concurrently. The other goroutines are added to the waiting list and are removed and given a 
-chance to access the resource in the FIFO order. If the context is cancelled , the goroutine is removed from the waitlist.
+chance to access the resource in the FIFO order. If the context is cancelled , the goroutine is removed from the waitlist and `Wait` returns the context error.
 
 ### Limiter with Timeout
 
@@ -115,19 +125,22 @@ chance to access the resource in the FIFO order. If the context is cancelled , t
     WithTimeout(10),
     )
     ctx := context.Background()
-    nl.Wait(ctx)
+    if err := nl.Wait(ctx); err != nil {
+        return
+    }
     // Perform actions .........
     nl.Finish()
 ```
-In the above example , the goroutines will wait for a maximum of 10 milliseconds. Goroutines will be removed from the waitlist after 10 ms even if the 
-number of concurrent goroutines is greater than the limit specified.
+In the above example , the goroutines will wait for a maximum of 10 milliseconds. Goroutines will be removed from the waitlist after 10 ms and `Wait` will return `limiter.ErrTimeout`.
 
 ### Priority Limiter
 
 ```go
     nl := priority.NewLimiter(3)
     ctx := context.Background()
-    nl.Wait(ctx , priority.High)
+    if err := nl.Wait(ctx , priority.High); err != nil {
+        return
+    }
     // Perform actions .........
     nl.Finish()
 ```
@@ -142,7 +155,9 @@ given the maximum preference because it is of high priority. In the case of tie 
     WithDynamicPriority(5),
     )
     ctx := context.Background()
-    nl.Wait(ctx , priority.Low)
+    if err := nl.Wait(ctx , priority.Low); err != nil {
+        return
+    }
     // Perform actions .........
     nl.Finish()
 ```
@@ -156,11 +171,13 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
     WithDynamicPriority(5),
     )
     ctx := context.Background()
-    nl.Wait(ctx , priority.Low)
+    if err := nl.Wait(ctx , priority.Low); err != nil {
+        return
+    }
     // Perform actions .........
     nl.Finish()
 ```
-This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds. The low priority goroutines will get their
+This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds and `Wait` will return `limiter.ErrTimeout` if capacity is not acquired in time. The low priority goroutines will get their
 priority increased every 5 ms.
 
 ### Runnable Function
@@ -174,8 +191,8 @@ priority increased every 5 ms.
 ```
 
 Runnable function will allow you to wrap your function and execute them with concurrency limit. This function is a wrapper on top of the Wait() and Finish() functions.
+If `Wait` fails because the context is cancelled or the timeout expires, `Run` returns that error and does not execute the callback.
 
 ### Contribution
 
 Please feel free to open up issues , create PRs for bugs/features. All contributions are welcome :)
-

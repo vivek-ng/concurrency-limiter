@@ -81,35 +81,45 @@ func WithTimeout(timeout int) func(*PriorityLimiter) {
 // MediumHigh = 3
 // High = 4
 func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) error {
+	_, err := p.wait(ctx, priority, false)
+	return err
+}
+
+// WaitOrBypass waits until capacity is available, or bypasses the limiter after the configured timeout.
+func (p *PriorityLimiter) WaitOrBypass(ctx context.Context, priority PriorityValue) (limiter.AdmissionResult, error) {
+	return p.wait(ctx, priority, true)
+}
+
+func (p *PriorityLimiter) wait(ctx context.Context, priority PriorityValue, allowBypass bool) (limiter.AdmissionResult, error) {
 	ok, w := p.proceed(priority)
 	if ok {
-		return nil
+		return limiter.AdmissionAcquired, nil
 	}
 
 	if p.DynamicPeriod == nil && p.Timeout == nil {
 		select {
 		case <-w.Done:
-			return nil
+			return limiter.AdmissionAcquired, nil
 		case <-ctx.Done():
 			if p.removeWaiter(w) {
-				return ctx.Err()
+				return 0, ctx.Err()
 			}
-			return nil
+			return limiter.AdmissionAcquired, nil
 		}
 	}
 
 	if p.DynamicPeriod != nil && p.Timeout != nil {
-		return p.dynamicPriorityAndTimeout(ctx, w)
+		return p.dynamicPriorityAndTimeout(ctx, w, allowBypass)
 	}
 
 	if p.Timeout != nil {
-		return p.handleTimeout(ctx, w)
+		return p.handleTimeout(ctx, w, allowBypass)
 	}
 
 	return p.handleDynamicPriority(ctx, w)
 }
 
-func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) error {
+func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item, allowBypass bool) (limiter.AdmissionResult, error) {
 	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
 	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
 	defer ticker.Stop()
@@ -117,32 +127,35 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 	for {
 		select {
 		case <-w.Done:
-			return nil
+			return limiter.AdmissionAcquired, nil
 		case <-ctx.Done():
 			if p.removeWaiter(w) {
-				return ctx.Err()
+				return 0, ctx.Err()
 			}
-			return nil
+			return limiter.AdmissionAcquired, nil
 		case <-timer.C:
 			if p.removeWaiter(w) {
-				return limiter.ErrTimeout
+				if allowBypass {
+					return limiter.AdmissionBypassed, nil
+				}
+				return 0, limiter.ErrTimeout
 			}
-			return nil
+			return limiter.AdmissionAcquired, nil
 		case <-ticker.C:
 			// edge case where we receive ctx.Done and ticker.C at the same time...
 			select {
 			case <-ctx.Done():
 				if p.removeWaiter(w) {
-					return ctx.Err()
+					return 0, ctx.Err()
 				}
-				return nil
+				return limiter.AdmissionAcquired, nil
 			default:
 			}
 			p.mu.Lock()
 			if w.Priority < int(High) {
 				if _, ok := p.waitList.FindIndex(w); !ok {
 					p.mu.Unlock()
-					return nil
+					return limiter.AdmissionAcquired, nil
 				}
 				currentPriority := w.Priority
 				p.waitList.Update(w, currentPriority+1)
@@ -152,19 +165,19 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 	}
 }
 
-func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) error {
+func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) (limiter.AdmissionResult, error) {
 	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-w.Done:
-			return nil
+			return limiter.AdmissionAcquired, nil
 		case <-ticker.C:
 			p.mu.Lock()
 			if w.Priority < int(High) {
 				if _, ok := p.waitList.FindIndex(w); !ok {
 					p.mu.Unlock()
-					return nil
+					return limiter.AdmissionAcquired, nil
 				}
 				currentPriority := w.Priority
 				p.waitList.Update(w, currentPriority+1)
@@ -172,29 +185,32 @@ func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.It
 			p.mu.Unlock()
 		case <-ctx.Done():
 			if p.removeWaiter(w) {
-				return ctx.Err()
+				return 0, ctx.Err()
 			}
-			return nil
+			return limiter.AdmissionAcquired, nil
 		}
 	}
 }
 
-func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item) error {
+func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item, allowBypass bool) (limiter.AdmissionResult, error) {
 	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
 	defer timer.Stop()
 	select {
 	case <-w.Done:
-		return nil
+		return limiter.AdmissionAcquired, nil
 	case <-timer.C:
 		if p.removeWaiter(w) {
-			return limiter.ErrTimeout
+			if allowBypass {
+				return limiter.AdmissionBypassed, nil
+			}
+			return 0, limiter.ErrTimeout
 		}
-		return nil
+		return limiter.AdmissionAcquired, nil
 	case <-ctx.Done():
 		if p.removeWaiter(w) {
-			return ctx.Err()
+			return 0, ctx.Err()
 		}
-		return nil
+		return limiter.AdmissionAcquired, nil
 	}
 }
 
@@ -256,6 +272,21 @@ func (p *PriorityLimiter) Run(ctx context.Context,
 	}
 	defer p.Finish()
 	return callback()
+}
+
+// RunOrBypass executes the callback after real acquisition or timeout bypass.
+// Finish is only called when capacity was actually acquired.
+func (p *PriorityLimiter) RunOrBypass(ctx context.Context,
+	priority PriorityValue,
+	callback func() error) (limiter.AdmissionResult, error) {
+	result, err := p.WaitOrBypass(ctx, priority)
+	if err != nil {
+		return 0, err
+	}
+	if result == limiter.AdmissionAcquired {
+		defer p.Finish()
+	}
+	return result, callback()
 }
 
 // only used in tests

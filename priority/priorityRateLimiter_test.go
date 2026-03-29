@@ -167,7 +167,7 @@ func TestDynamicPriorityCanceledWaiterIsRemovedSafely(t *testing.T) {
 	time.Sleep(30 * time.Millisecond)
 	cancel()
 
-	assert.ErrorIs(t, <-done, context.Canceled)
+	assert.True(t, errors.Is(<-done, context.Canceled))
 	assert.Zero(t, nl.waitListSize())
 	assert.Equal(t, 1, nl.Count())
 
@@ -185,7 +185,7 @@ func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
 		return nil
 	})
 
-	assert.ErrorIs(t, err, limiter.ErrTimeout)
+	assert.True(t, errors.Is(err, limiter.ErrTimeout))
 	assert.Zero(t, atomic.LoadInt32(&called))
 	assert.Equal(t, 1, nl.Count())
 

@@ -167,7 +167,7 @@ func TestRunDoesNotExecuteOnCanceledWait(t *testing.T) {
 		return nil
 	})
 
-	assert.ErrorIs(t, err, context.Canceled)
+	assert.True(t, errors.Is(err, context.Canceled))
 	assert.Zero(t, atomic.LoadInt32(&called))
 	assert.Equal(t, 1, l.Count())
 
@@ -185,7 +185,7 @@ func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
 		return nil
 	})
 
-	assert.ErrorIs(t, err, ErrTimeout)
+	assert.True(t, errors.Is(err, ErrTimeout))
 	assert.Zero(t, atomic.LoadInt32(&called))
 	assert.Equal(t, 1, l.Count())
 

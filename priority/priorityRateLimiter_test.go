@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	limiter "github.com/vivek-ng/concurrency-limiter"
 	"github.com/stretchr/testify/assert"
+	limiter "github.com/vivek-ng/concurrency-limiter"
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
@@ -187,6 +187,110 @@ func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
 
 	assert.True(t, errors.Is(err, limiter.ErrTimeout))
 	assert.Zero(t, atomic.LoadInt32(&called))
+	assert.Equal(t, 1, nl.Count())
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
+func TestPriorityLimiterWaitOrBypassReturnsBypassedOnTimeout(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(50))
+	assert.NoError(t, nl.Wait(context.Background(), High))
+
+	result, err := nl.WaitOrBypass(context.Background(), Low)
+
+	assert.NoError(t, err)
+	assert.Equal(t, limiter.AdmissionBypassed, result)
+	assert.Equal(t, 1, nl.Count())
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
+func TestPriorityLimiterWaitOrBypassReturnsCanceledContext(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(100))
+	assert.NoError(t, nl.Wait(context.Background(), High))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := nl.WaitOrBypass(ctx, Low)
+
+	assert.Zero(t, result)
+	assert.True(t, errors.Is(err, context.Canceled))
+	assert.Equal(t, 1, nl.Count())
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
+func TestPriorityRunOrBypassExecutesCallbackOnTimeoutWithoutFinishing(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(50))
+	assert.NoError(t, nl.Wait(context.Background(), High))
+
+	var called int32
+	result, err := nl.RunOrBypass(context.Background(), Low, func() error {
+		atomic.AddInt32(&called, 1)
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, limiter.AdmissionBypassed, result)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&called))
+	assert.Equal(t, 1, nl.Count())
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
+func TestPriorityRunOrBypassAcquiredStillFinishes(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(50))
+
+	var called int32
+	result, err := nl.RunOrBypass(context.Background(), Low, func() error {
+		atomic.AddInt32(&called, 1)
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, limiter.AdmissionAcquired, result)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&called))
+	assert.Zero(t, nl.Count())
+}
+
+func TestPrioritySoftModeStillReleasesHighestPriorityBeforeBypassing(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(100))
+	assert.NoError(t, nl.Wait(context.Background(), Low))
+
+	highDone := make(chan limiter.AdmissionResult, 1)
+	lowDone := make(chan limiter.AdmissionResult, 1)
+
+	go func() {
+		result, err := nl.WaitOrBypass(context.Background(), High)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		highDone <- result
+	}()
+	go func() {
+		result, err := nl.WaitOrBypass(context.Background(), Low)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		lowDone <- result
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	nl.Finish()
+
+	assert.Equal(t, limiter.AdmissionAcquired, <-highDone)
+	assert.Equal(t, 1, nl.Count())
+
+	nl.Finish()
+
+	assert.Equal(t, limiter.AdmissionAcquired, <-lowDone)
 	assert.Equal(t, 1, nl.Count())
 
 	nl.Finish()

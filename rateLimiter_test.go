@@ -192,3 +192,68 @@ func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
 	l.Finish()
 	assert.Zero(t, l.Count())
 }
+
+func TestWaitOrBypassReturnsBypassedOnTimeout(t *testing.T) {
+	l := New(1, WithTimeout(50))
+	assert.NoError(t, l.Wait(context.Background()))
+
+	result, err := l.WaitOrBypass(context.Background())
+
+	assert.NoError(t, err)
+	assert.Equal(t, AdmissionBypassed, result)
+	assert.Equal(t, 1, l.Count())
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestWaitOrBypassReturnsCanceledContext(t *testing.T) {
+	l := New(1, WithTimeout(100))
+	assert.NoError(t, l.Wait(context.Background()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := l.WaitOrBypass(ctx)
+
+	assert.Zero(t, result)
+	assert.True(t, errors.Is(err, context.Canceled))
+	assert.Equal(t, 1, l.Count())
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestRunOrBypassExecutesCallbackOnTimeoutWithoutFinishing(t *testing.T) {
+	l := New(1, WithTimeout(50))
+	assert.NoError(t, l.Wait(context.Background()))
+
+	var called int32
+	result, err := l.RunOrBypass(context.Background(), func() error {
+		atomic.AddInt32(&called, 1)
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, AdmissionBypassed, result)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&called))
+	assert.Equal(t, 1, l.Count())
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestRunOrBypassAcquiredStillFinishes(t *testing.T) {
+	l := New(1, WithTimeout(50))
+
+	var called int32
+	result, err := l.RunOrBypass(context.Background(), func() error {
+		atomic.AddInt32(&called, 1)
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, AdmissionAcquired, result)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&called))
+	assert.Zero(t, l.Count())
+}

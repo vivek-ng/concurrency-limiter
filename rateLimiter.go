@@ -52,36 +52,50 @@ func WithTimeout(timeout int) func(*Limiter) {
 // Wait waits until capacity is available or the context/timeout expires.
 // It returns nil only when the caller successfully acquires capacity.
 func (l *Limiter) Wait(ctx context.Context) error {
+	_, err := l.wait(ctx, false)
+	return err
+}
+
+// WaitOrBypass waits until capacity is available, or bypasses the limiter after the configured timeout.
+// It returns AdmissionBypassed only when a timeout occurs before capacity is acquired.
+func (l *Limiter) WaitOrBypass(ctx context.Context) (AdmissionResult, error) {
+	return l.wait(ctx, true)
+}
+
+func (l *Limiter) wait(ctx context.Context, allowBypass bool) (AdmissionResult, error) {
 	ok, ch := l.proceed()
 	if ok {
-		return nil
+		return AdmissionAcquired, nil
 	}
 	if l.Timeout != nil {
 		timer := time.NewTimer(time.Duration(*l.Timeout) * time.Millisecond)
 		defer timer.Stop()
 		select {
 		case <-ch:
-			return nil
+			return AdmissionAcquired, nil
 		case <-timer.C:
 			if l.removeWaiter(ch) {
-				return ErrTimeout
+				if allowBypass {
+					return AdmissionBypassed, nil
+				}
+				return 0, ErrTimeout
 			}
-			return nil
+			return AdmissionAcquired, nil
 		case <-ctx.Done():
 			if l.removeWaiter(ch) {
-				return ctx.Err()
+				return 0, ctx.Err()
 			}
-			return nil
+			return AdmissionAcquired, nil
 		}
 	}
 	select {
 	case <-ch:
-		return nil
+		return AdmissionAcquired, nil
 	case <-ctx.Done():
 		if l.removeWaiter(ch) {
-			return ctx.Err()
+			return 0, ctx.Err()
 		}
-		return nil
+		return AdmissionAcquired, nil
 	}
 }
 
@@ -143,6 +157,19 @@ func (l *Limiter) Run(ctx context.Context, callback func() error) error {
 	}
 	defer l.Finish()
 	return callback()
+}
+
+// RunOrBypass executes the callback after real acquisition or bypass after timeout.
+// Finish is only called when capacity was actually acquired.
+func (l *Limiter) RunOrBypass(ctx context.Context, callback func() error) (AdmissionResult, error) {
+	result, err := l.WaitOrBypass(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if result == AdmissionAcquired {
+		defer l.Finish()
+	}
+	return result, callback()
 }
 
 // only used in tests

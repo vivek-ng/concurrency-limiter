@@ -10,6 +10,10 @@
 concurrency-limiter allows you to limit the number of goroutines accessing a resource with support for
 timeouts , dynamic priority of goroutines and context cancellation of goroutines.
 
+The library now supports two admission modes:
+- strict admission via `Wait` / `Run`
+- soft admission via `WaitOrBypass` / `RunOrBypass`
+
 ### Installation
 
 To install concurrency-limiter:
@@ -133,6 +137,25 @@ chance to access the resource in the FIFO order. If the context is cancelled , t
 ```
 In the above example , the goroutines will wait for a maximum of 10 milliseconds. Goroutines will be removed from the waitlist after 10 ms and `Wait` will return `limiter.ErrTimeout`.
 
+### Limiter with Soft Timeout
+
+```go
+    nl := limiter.New(3,
+    WithTimeout(10),
+    )
+    ctx := context.Background()
+    result, err := nl.WaitOrBypass(ctx)
+    if err != nil {
+        return
+    }
+    if result == limiter.AdmissionAcquired {
+        defer nl.Finish()
+    }
+    // Perform actions .........
+```
+
+In the above example , the goroutine waits for up to 10 milliseconds to acquire real capacity. If capacity is still unavailable after the timeout, `WaitOrBypass` returns `limiter.AdmissionBypassed` and the caller can still proceed without consuming limiter capacity.
+
 ### Priority Limiter
 
 ```go
@@ -180,6 +203,26 @@ In Dynamic Priority Limiter , the goroutines with lower priority will get their 
 This is similar to the timeouts in the normal limiter. In the above example , goroutines will wait a maximum of 30 milliseconds and `Wait` will return `limiter.ErrTimeout` if capacity is not acquired in time. The low priority goroutines will get their
 priority increased every 5 ms.
 
+### Priority Limiter with Soft Timeout
+
+```go
+    nl := priority.NewLimiter(3,
+    WithTimeout(30),
+    WithDynamicPriority(5),
+    )
+    ctx := context.Background()
+    result, err := nl.WaitOrBypass(ctx , priority.Low)
+    if err != nil {
+        return
+    }
+    if result == limiter.AdmissionAcquired {
+        defer nl.Finish()
+    }
+    // Perform actions .........
+```
+
+This uses the same soft-admission model for the priority limiter. The goroutine waits up to the configured timeout while still participating in the priority queue. If capacity is not acquired in time, the call returns `limiter.AdmissionBypassed` and the caller may continue outside the limiter.
+
 ### Runnable Function
 
 ```go
@@ -192,6 +235,24 @@ priority increased every 5 ms.
 
 Runnable function will allow you to wrap your function and execute them with concurrency limit. This function is a wrapper on top of the Wait() and Finish() functions.
 If `Wait` fails because the context is cancelled or the timeout expires, `Run` returns that error and does not execute the callback.
+
+### Runnable Function with Soft Timeout
+
+```go
+    nl := priority.NewLimiter(3,
+    WithTimeout(30),
+    )
+    ctx := context.Background()
+    result, err := nl.RunOrBypass(ctx , priority.Low , func()error {
+        return sendMetrics()
+    })
+    if err != nil {
+        return
+    }
+    _ = result
+```
+
+`RunOrBypass` executes the callback after either real admission or timeout bypass. It returns `limiter.AdmissionAcquired` when the limiter granted capacity and `limiter.AdmissionBypassed` when the callback ran outside the limiter after the timeout.
 
 ### Contribution
 

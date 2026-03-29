@@ -27,12 +27,19 @@ const (
 
 // PriorityLimiter stores the configuration need for priority concurrency limiter....
 type PriorityLimiter struct {
-	count         int
-	Limit         int
-	mu            sync.Mutex
-	waitList      queue.PriorityQueue
+	count int
+	// Deprecated: configure via NewLimiter. Runtime behavior uses an internal snapshot.
+	Limit    int
+	mu       sync.Mutex
+	waitList queue.PriorityQueue
+	// Deprecated: configure via WithDynamicPriority. Runtime behavior uses an internal snapshot.
 	DynamicPeriod *int
-	Timeout       *int
+	// Deprecated: configure via WithTimeout. Runtime behavior uses an internal snapshot.
+	Timeout *int
+
+	limit         int
+	dynamicPeriod *int
+	timeout       *int
 }
 
 // Option is a type to configure the Limiter struct....
@@ -45,6 +52,7 @@ func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 	nl := &PriorityLimiter{
 		Limit:    limit,
 		waitList: pq,
+		limit:    limit,
 	}
 
 	for _, o := range options {
@@ -60,6 +68,7 @@ func NewLimiter(limit int, options ...Option) *PriorityLimiter {
 func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
 		p.DynamicPeriod = &dynamicPeriod
+		p.dynamicPeriod = &dynamicPeriod
 	}
 }
 
@@ -68,6 +77,7 @@ func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 func WithTimeout(timeout int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
 		p.Timeout = &timeout
+		p.timeout = &timeout
 	}
 }
 
@@ -96,7 +106,7 @@ func (p *PriorityLimiter) wait(ctx context.Context, priority PriorityValue, allo
 		return limiter.AdmissionAcquired, nil
 	}
 
-	if p.DynamicPeriod == nil && p.Timeout == nil {
+	if p.dynamicPeriod == nil && p.timeout == nil {
 		select {
 		case <-w.Done:
 			return limiter.AdmissionAcquired, nil
@@ -108,11 +118,11 @@ func (p *PriorityLimiter) wait(ctx context.Context, priority PriorityValue, allo
 		}
 	}
 
-	if p.DynamicPeriod != nil && p.Timeout != nil {
+	if p.dynamicPeriod != nil && p.timeout != nil {
 		return p.dynamicPriorityAndTimeout(ctx, w, allowBypass)
 	}
 
-	if p.Timeout != nil {
+	if p.timeout != nil {
 		return p.handleTimeout(ctx, w, allowBypass)
 	}
 
@@ -120,8 +130,8 @@ func (p *PriorityLimiter) wait(ctx context.Context, priority PriorityValue, allo
 }
 
 func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item, allowBypass bool) (limiter.AdmissionResult, error) {
-	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
-	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
+	timer := time.NewTimer(time.Duration(*p.timeout) * time.Millisecond)
 	defer ticker.Stop()
 	defer timer.Stop()
 	for {
@@ -166,7 +176,7 @@ func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queu
 }
 
 func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) (limiter.AdmissionResult, error) {
-	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(*p.dynamicPeriod) * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
@@ -193,7 +203,7 @@ func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.It
 }
 
 func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item, allowBypass bool) (limiter.AdmissionResult, error) {
-	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
+	timer := time.NewTimer(time.Duration(*p.timeout) * time.Millisecond)
 	defer timer.Stop()
 	select {
 	case <-w.Done:
@@ -232,7 +242,7 @@ func (p *PriorityLimiter) proceed(priority PriorityValue) (bool, *queue.Item) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.count < p.Limit {
+	if p.count < p.limit {
 		p.count++
 		return true, nil
 	}

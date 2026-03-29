@@ -257,3 +257,44 @@ func TestRunOrBypassAcquiredStillFinishes(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&called))
 	assert.Zero(t, l.Count())
 }
+
+func TestExportedFieldMutationDoesNotAffectRuntimeLimit(t *testing.T) {
+	l := New(1)
+	l.Limit = 100
+
+	assert.NoError(t, l.Wait(context.Background()))
+	assert.Equal(t, 1, l.Count())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- l.Wait(ctx)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 1, l.waitListSize())
+	cancel()
+	assert.True(t, errors.Is(<-done, context.Canceled))
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestExportedFieldMutationDoesNotAffectRuntimeTimeout(t *testing.T) {
+	l := New(1, WithTimeout(50))
+	l.Timeout = nil
+
+	assert.NoError(t, l.Wait(context.Background()))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- l.Wait(context.Background())
+	}()
+
+	err := <-done
+	assert.True(t, errors.Is(err, ErrTimeout))
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}

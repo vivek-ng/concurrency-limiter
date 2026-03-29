@@ -297,6 +297,48 @@ func TestPrioritySoftModeStillReleasesHighestPriorityBeforeBypassing(t *testing.
 	assert.Zero(t, nl.Count())
 }
 
+func TestPriorityExportedFieldMutationDoesNotAffectRuntimeLimit(t *testing.T) {
+	nl := NewLimiter(1)
+	nl.Limit = 100
+
+	assert.NoError(t, nl.Wait(context.Background(), High))
+	assert.Equal(t, 1, nl.Count())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- nl.Wait(ctx, Low)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 1, nl.waitListSize())
+	cancel()
+	assert.True(t, errors.Is(<-done, context.Canceled))
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
+func TestPriorityExportedFieldMutationDoesNotAffectRuntimeTimeouts(t *testing.T) {
+	nl := NewLimiter(1, WithTimeout(50), WithDynamicPriority(5))
+	nl.Timeout = nil
+	nl.DynamicPeriod = nil
+
+	assert.NoError(t, nl.Wait(context.Background(), High))
+
+	done := make(chan error, 1)
+	go func() {
+		done <- nl.Wait(context.Background(), Low)
+	}()
+
+	err := <-done
+	assert.True(t, errors.Is(err, limiter.ErrTimeout))
+
+	nl.Finish()
+	assert.Zero(t, nl.Count())
+}
+
 func TestPriorityQueueOrderingStillMatchesLimiterExpectations(t *testing.T) {
 	nl := NewLimiter(0)
 	_, _ = nl.proceed(Low)

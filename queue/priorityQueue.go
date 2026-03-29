@@ -65,10 +65,18 @@ func (pq *PriorityQueue) Top() interface{} {
 	return *ol[0]
 }
 
-// GetIndex returns the index of the corresponding element.
-func (pq *PriorityQueue) GetIndex(x interface{}) int {
+// FindIndex returns the current index of the corresponding element if it is still present.
+func (pq *PriorityQueue) FindIndex(x interface{}) (int, bool) {
 	item := x.(*Item)
-	return item.index
+	if item.index >= 0 && item.index < len(*pq) && (*pq)[item.index] == item {
+		return item.index, true
+	}
+	for idx, candidate := range *pq {
+		if candidate == item {
+			return idx, true
+		}
+	}
+	return -1, false
 }
 
 // Update updates the attributes of an element in the priority queue.

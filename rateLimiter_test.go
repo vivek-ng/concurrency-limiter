@@ -2,7 +2,9 @@ package limiter
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,101 +15,180 @@ func TestConcurrentRateLimiterNonBlocking(t *testing.T) {
 	l := New(7)
 
 	var wg sync.WaitGroup
+	results := make(chan error, 5)
 	wg.Add(5)
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait(ctx)
+			results <- l.Wait(ctx)
 		}()
 	}
 
 	wg.Wait()
-	assert.Equal(t, 0, l.waitList.Len())
+	close(results)
+	for err := range results {
+		assert.NoError(t, err)
+	}
+	assert.Zero(t, l.waitList.Len())
+	assert.Equal(t, 5, l.Count())
+	for i := 0; i < 5; i++ {
+		l.Finish()
+	}
+	assert.Zero(t, l.Count())
 }
 
 func TestConcurrentRateLimiterBlocking(t *testing.T) {
 	l := New(2)
 
 	var wg sync.WaitGroup
+	results := make(chan error, 5)
 	wg.Add(5)
 	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait(ctx)
+			results <- l.Wait(ctx)
 		}()
 	}
+
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 3, l.waitListSize())
-	for i := 0; i < 3; i++ {
+	assert.Equal(t, 2, l.Count())
+
+	for i := 0; i < 5; i++ {
 		l.Finish()
 	}
+
 	wg.Wait()
+	close(results)
+	for err := range results {
+		assert.NoError(t, err)
+	}
 	assert.Equal(t, 0, l.waitListSize())
+	assert.Zero(t, l.Count())
 }
 
 func TestConcurrentRateLimiterTimeout(t *testing.T) {
-	l := New(2,
-		WithTimeout(300),
-	)
+	l := New(2, WithTimeout(100))
 
 	var wg sync.WaitGroup
-	wg.Add(5)
+	results := make(chan error, 5)
 	ctx := context.Background()
 
+	wg.Add(5)
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait(ctx)
+			results <- l.Wait(ctx)
 		}()
 	}
-	time.Sleep(500 * time.Millisecond)
+
 	wg.Wait()
+	close(results)
+
+	var success, timeout int
+	for err := range results {
+		switch {
+		case err == nil:
+			success++
+		case errors.Is(err, ErrTimeout):
+			timeout++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	assert.Equal(t, 2, success)
+	assert.Equal(t, 3, timeout)
+	assert.Equal(t, 2, l.Count())
+	assert.Zero(t, l.waitList.Len())
+
 	l.Finish()
 	l.Finish()
-	assert.Equal(t, 3, l.Count())
-	assert.Equal(t, 0, l.waitList.Len())
+	assert.Zero(t, l.Count())
 }
 
-func TestConcurrentRateLimiter_ContextDone(t *testing.T) {
+func TestConcurrentRateLimiterContextDone(t *testing.T) {
 	l := New(2)
 
 	var wg sync.WaitGroup
-	wg.Add(5)
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	results := make(chan error, 5)
+	ctx, cancel := context.WithCancel(context.Background())
 
+	wg.Add(5)
 	for i := 0; i < 5; i++ {
 		go func() {
 			defer wg.Done()
-			l.Wait(ctx)
+			results <- l.Wait(ctx)
 		}()
 	}
-	time.Sleep(200 * time.Millisecond)
+
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 3, l.waitListSize())
 	cancel()
-	time.Sleep(100 * time.Millisecond)
-	assert.Zero(t, l.waitListSize())
-	assert.Equal(t, 5, l.Count())
-}
-
-func TestExecute(t *testing.T) {
-	l := New(2)
-	ctx := context.Background()
-	var wg sync.WaitGroup
-	wg.Add(5)
-	for i := 0; i < 5; i++ {
-		go func() {
-			defer wg.Done()
-			_ = l.Run(ctx, func() error {
-				return nil
-			})
-		}()
-	}
 
 	wg.Wait()
+	close(results)
+
+	var success, canceled int
+	for err := range results {
+		switch {
+		case err == nil:
+			success++
+		case errors.Is(err, context.Canceled):
+			canceled++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	assert.Equal(t, 2, success)
+	assert.Equal(t, 3, canceled)
 	assert.Zero(t, l.waitListSize())
+	assert.Equal(t, 2, l.Count())
+
+	l.Finish()
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestRunDoesNotExecuteOnCanceledWait(t *testing.T) {
+	l := New(1)
+	assert.NoError(t, l.Wait(context.Background()))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var called int32
+	err := l.Run(ctx, func() error {
+		atomic.AddInt32(&called, 1)
+		return nil
+	})
+
+	assert.True(t, errors.Is(err, context.Canceled))
+	assert.Zero(t, atomic.LoadInt32(&called))
+	assert.Equal(t, 1, l.Count())
+
+	l.Finish()
+	assert.Zero(t, l.Count())
+}
+
+func TestRunDoesNotExecuteOnTimeout(t *testing.T) {
+	l := New(1, WithTimeout(50))
+	assert.NoError(t, l.Wait(context.Background()))
+
+	var called int32
+	err := l.Run(context.Background(), func() error {
+		atomic.AddInt32(&called, 1)
+		return nil
+	})
+
+	assert.True(t, errors.Is(err, ErrTimeout))
+	assert.Zero(t, atomic.LoadInt32(&called))
+	assert.Equal(t, 1, l.Count())
+
+	l.Finish()
 	assert.Zero(t, l.Count())
 }

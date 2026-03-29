@@ -3,9 +3,12 @@ package limiter
 import (
 	"container/list"
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
+
+var ErrTimeout = errors.New("limiter: timed out waiting for capacity")
 
 // waiter is the individual goroutine waiting for accessing the resource.
 // waiter waits for the signal through the done channel.
@@ -38,50 +41,62 @@ func New(limit int, options ...Option) *Limiter {
 	return l
 }
 
-// WithTimeout : If this field is specified , goroutines will be automatically removed from the waitlist
-// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
+// WithTimeout : If this field is specified , goroutines will be removed from the waitlist
+// after the time passes the timeout specified and Wait will return ErrTimeout.
 func WithTimeout(timeout int) func(*Limiter) {
 	return func(l *Limiter) {
 		l.Timeout = &timeout
 	}
 }
 
-// Wait method waits if the number of concurrent requests is more than the limit specified.
-// If a timeout is configured , then the goroutine will wait until the timeout occurs and then proceeds to
-// access the resource irrespective of whether it has received a signal in the done channel.
-func (l *Limiter) Wait(ctx context.Context) {
+// Wait waits until capacity is available or the context/timeout expires.
+// It returns nil only when the caller successfully acquires capacity.
+func (l *Limiter) Wait(ctx context.Context) error {
 	ok, ch := l.proceed()
 	if ok {
-		return
+		return nil
 	}
 	if l.Timeout != nil {
+		timer := time.NewTimer(time.Duration(*l.Timeout) * time.Millisecond)
+		defer timer.Stop()
 		select {
 		case <-ch:
-		case <-time.After((time.Duration(*l.Timeout) * time.Millisecond)):
-			l.removeWaiter(ch)
+			return nil
+		case <-timer.C:
+			if l.removeWaiter(ch) {
+				return ErrTimeout
+			}
+			return nil
 		case <-ctx.Done():
+			if l.removeWaiter(ch) {
+				return ctx.Err()
+			}
+			return nil
 		}
-		return
 	}
 	select {
 	case <-ch:
+		return nil
 	case <-ctx.Done():
-		l.removeWaiter(ch)
+		if l.removeWaiter(ch) {
+			return ctx.Err()
+		}
+		return nil
 	}
 }
 
-func (l *Limiter) removeWaiter(ch chan struct{}) {
+func (l *Limiter) removeWaiter(ch chan struct{}) bool {
 	l.mu.Lock()
+	defer l.mu.Unlock()
 	for w := l.waitList.Front(); w != nil; w = w.Next() {
 		ele := w.Value.(waiter)
 		if ele.done == ch {
 			close(ch)
-			l.count++
 			l.waitList.Remove(w)
-			break
+			return true
 		}
 	}
-	l.mu.Unlock()
+	return false
 }
 
 // proceed will return true if the number of concurrent requests is less than the limit else it
@@ -108,20 +123,24 @@ func (l *Limiter) proceed() (bool, chan struct{}) {
 func (l *Limiter) Finish() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.count == 0 {
+		return
+	}
 	l.count -= 1
 	first := l.waitList.Front()
 	if first == nil {
 		return
 	}
 	w := l.waitList.Remove(first).(waiter)
-	w.done <- struct{}{}
 	l.count++
 	close(w.done)
 }
 
 // Run wraps the function to limit the concurrency.....
 func (l *Limiter) Run(ctx context.Context, callback func() error) error {
-	l.Wait(ctx)
+	if err := l.Wait(ctx); err != nil {
+		return err
+	}
 	defer l.Finish()
 	return callback()
 }

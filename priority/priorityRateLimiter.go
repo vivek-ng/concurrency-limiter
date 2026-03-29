@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	limiter "github.com/vivek-ng/concurrency-limiter"
 	"github.com/vivek-ng/concurrency-limiter/queue"
 )
 
@@ -62,8 +63,8 @@ func WithDynamicPriority(dynamicPeriod int) func(*PriorityLimiter) {
 	}
 }
 
-// WithTimeout : If this field is specified , goroutines will be automatically removed from the waitlist
-// after the time passes the timeout specified even if the number of concurrent requests is greater than the limit.
+// WithTimeout : If this field is specified , goroutines will be removed from the waitlist
+// after the time passes the timeout specified and Wait will return limiter.ErrTimeout.
 func WithTimeout(timeout int) func(*PriorityLimiter) {
 	return func(p *PriorityLimiter) {
 		p.Timeout = &timeout
@@ -79,58 +80,70 @@ func WithTimeout(timeout int) func(*PriorityLimiter) {
 // Medium = 2
 // MediumHigh = 3
 // High = 4
-func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) {
+func (p *PriorityLimiter) Wait(ctx context.Context, priority PriorityValue) error {
 	ok, w := p.proceed(priority)
 	if ok {
-		return
+		return nil
 	}
 
 	if p.DynamicPeriod == nil && p.Timeout == nil {
 		select {
 		case <-w.Done:
+			return nil
 		case <-ctx.Done():
-			p.removeWaiter(w)
+			if p.removeWaiter(w) {
+				return ctx.Err()
+			}
+			return nil
 		}
-		return
 	}
 
 	if p.DynamicPeriod != nil && p.Timeout != nil {
-		p.dynamicPriorityAndTimeout(ctx, w)
-		return
+		return p.dynamicPriorityAndTimeout(ctx, w)
 	}
 
 	if p.Timeout != nil {
-		p.handleTimeout(ctx, w)
-		return
+		return p.handleTimeout(ctx, w)
 	}
 
-	p.handleDynamicPriority(ctx, w)
+	return p.handleDynamicPriority(ctx, w)
 }
 
-func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) {
+func (p *PriorityLimiter) dynamicPriorityAndTimeout(ctx context.Context, w *queue.Item) error {
 	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
 	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
-WaitLoop:
+	defer ticker.Stop()
+	defer timer.Stop()
 	for {
 		select {
 		case <-w.Done:
-			break WaitLoop
+			return nil
 		case <-ctx.Done():
-			p.removeWaiter(w)
-			break WaitLoop
+			if p.removeWaiter(w) {
+				return ctx.Err()
+			}
+			return nil
 		case <-timer.C:
-			p.removeWaiter(w)
-			break WaitLoop
+			if p.removeWaiter(w) {
+				return limiter.ErrTimeout
+			}
+			return nil
 		case <-ticker.C:
 			// edge case where we receive ctx.Done and ticker.C at the same time...
 			select {
 			case <-ctx.Done():
-				p.removeWaiter(w)
-				return
+				if p.removeWaiter(w) {
+					return ctx.Err()
+				}
+				return nil
 			default:
 			}
 			p.mu.Lock()
 			if w.Priority < int(High) {
+				if _, ok := p.waitList.FindIndex(w); !ok {
+					p.mu.Unlock()
+					return nil
+				}
 				currentPriority := w.Priority
 				p.waitList.Update(w, currentPriority+1)
 			}
@@ -139,43 +152,61 @@ WaitLoop:
 	}
 }
 
-func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) {
+func (p *PriorityLimiter) handleDynamicPriority(ctx context.Context, w *queue.Item) error {
 	ticker := time.NewTicker(time.Duration(*p.DynamicPeriod) * time.Millisecond)
-WaitLoop:
+	defer ticker.Stop()
 	for {
 		select {
 		case <-w.Done:
-			break WaitLoop
+			return nil
 		case <-ticker.C:
 			p.mu.Lock()
 			if w.Priority < int(High) {
+				if _, ok := p.waitList.FindIndex(w); !ok {
+					p.mu.Unlock()
+					return nil
+				}
 				currentPriority := w.Priority
 				p.waitList.Update(w, currentPriority+1)
 			}
 			p.mu.Unlock()
 		case <-ctx.Done():
-			p.removeWaiter(w)
-			break WaitLoop
+			if p.removeWaiter(w) {
+				return ctx.Err()
+			}
+			return nil
 		}
 	}
 }
 
-func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item) {
+func (p *PriorityLimiter) handleTimeout(ctx context.Context, w *queue.Item) error {
+	timer := time.NewTimer(time.Duration(*p.Timeout) * time.Millisecond)
+	defer timer.Stop()
 	select {
 	case <-w.Done:
-	case <-time.After(time.Duration(*p.Timeout) * time.Millisecond):
-		p.removeWaiter(w)
+		return nil
+	case <-timer.C:
+		if p.removeWaiter(w) {
+			return limiter.ErrTimeout
+		}
+		return nil
 	case <-ctx.Done():
-		p.removeWaiter(w)
+		if p.removeWaiter(w) {
+			return ctx.Err()
+		}
+		return nil
 	}
 }
 
-func (p *PriorityLimiter) removeWaiter(w *queue.Item) {
+func (p *PriorityLimiter) removeWaiter(w *queue.Item) bool {
 	p.mu.Lock()
-	heap.Remove(&p.waitList, p.waitList.GetIndex(w))
-	close(w.Done)
-	p.count++
-	p.mu.Unlock()
+	defer p.mu.Unlock()
+	if idx, ok := p.waitList.FindIndex(w); ok {
+		heap.Remove(&p.waitList, idx)
+		close(w.Done)
+		return true
+	}
+	return false
 }
 
 // proceed will return true if the number of concurrent requests is less than the limit else it
@@ -203,13 +234,15 @@ func (p *PriorityLimiter) proceed(priority PriorityValue) (bool, *queue.Item) {
 func (p *PriorityLimiter) Finish() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.count == 0 {
+		return
+	}
 	p.count -= 1
 	if p.waitList.Len() == 0 {
 		return
 	}
 	ele := heap.Pop(&p.waitList)
 	it := ele.(*queue.Item)
-	it.Done <- struct{}{}
 	p.count++
 	close(it.Done)
 }
@@ -218,7 +251,9 @@ func (p *PriorityLimiter) Finish() {
 func (p *PriorityLimiter) Run(ctx context.Context,
 	priority PriorityValue,
 	callback func() error) error {
-	p.Wait(ctx, priority)
+	if err := p.Wait(ctx, priority); err != nil {
+		return err
+	}
 	defer p.Finish()
 	return callback()
 }
